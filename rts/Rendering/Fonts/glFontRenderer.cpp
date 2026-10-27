@@ -12,12 +12,14 @@
 ////////////////////////////////////////
 //can't be put in VFS due to initialization order
 static constexpr const char* vsFont330 = R"(
-#version 150 compatibility
+#version 150
 #extension GL_ARB_explicit_attrib_location : enable
 
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec2 uv;
 layout (location = 2) in vec4 col;
+
+uniform mat4 mvp;
 
 out Data {
 	vec4 vCol;
@@ -27,7 +29,7 @@ out Data {
 void main() {
 	vCol = col;
 	vUV  = uv;
-	gl_Position = gl_ModelViewProjectionMatrix * vec4(pos, 1.0); // TODO: move to UBO
+	gl_Position = mvp * vec4(pos, 1.0);
 }
 )";
 
@@ -232,11 +234,20 @@ void CglShaderFontRenderer::PushGLState(const CglFont& fnt)
 
 	glGetIntegerv(GL_CURRENT_PROGRAM, &currProgID);
 
+	// gl_ModelViewProjectionMatrix does not exist in a core profile, so the
+	// matrix has to be supplied explicitly. Text is overwhelmingly drawn in
+	// screen space; in-world (3D) text still needs the caller's matrix plumbed
+	// through here.
+	const CMatrix44f mvp = globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
+
 	if (fnt.HasColor()) {
 		fontShaderColor->Enable();
+		fontShaderColor->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
 	}
-	else
+	else {
 		fontShader->Enable();
+		fontShader->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
+	}
 }
 
 void CglShaderFontRenderer::PopGLState(const CglFont& fnt)
