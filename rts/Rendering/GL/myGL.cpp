@@ -12,6 +12,8 @@
 #include "glxHandler.h"
 #include "Rendering/GlobalRendering.h"
 #include "Rendering/GlobalRenderingInfo.h"
+
+#include <algorithm>
 #include "Rendering/Textures/Bitmap.h"
 #include "Rendering/Textures/TextureFormat.h"
 #include "Rendering/GL/VBO.h"
@@ -738,6 +740,24 @@ void glSafeDeleteProgram(GLuint program)
 
 
 /******************************************************************************/
+
+void glSpringLineWidth(float width)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+	static float widthRange[2] = {0.0f, 0.0f};
+
+	if (widthRange[1] <= 0.0f) {
+		glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, widthRange);
+
+		// be defensive: if the query failed, assume the core-profile minimum
+		if (widthRange[1] <= 0.0f)
+			widthRange[0] = widthRange[1] = 1.0f;
+
+		LOG_L(L_DEBUG, "[%s] supported line-width range = [%f, %f]", __func__, widthRange[0], widthRange[1]);
+	}
+
+	glLineWidth(std::clamp(width, widthRange[0], widthRange[1]));
+}
 
 void glClearErrors(const char* cls, const char* fnc, bool verbose)
 {

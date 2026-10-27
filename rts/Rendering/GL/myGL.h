@@ -112,6 +112,12 @@ bool ProgramStringIsNative(GLenum target, const char* filename);
 unsigned int LoadVertexProgram(const char* filename);
 unsigned int LoadFragmentProgram(const char* filename);
 
+// Clamps to GL_ALIASED_LINE_WIDTH_RANGE. A core profile only has to support a
+// width of 1.0, and anything outside the supported range raises
+// GL_INVALID_VALUE while leaving the width unchanged, so call this rather than
+// glLineWidth directly.
+void glSpringLineWidth(float width);
+
 void glClearErrors(const char* cls, const char* fnc, bool verbose = false);
 void glSafeDeleteProgram(GLuint program);
 

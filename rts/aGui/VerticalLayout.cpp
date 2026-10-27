@@ -18,7 +18,7 @@ void VerticalLayout::DrawSelf()
 {
 	if (borderWidth > 0)
 	{
-		glLineWidth(borderWidth);
+		glSpringLineWidth(borderWidth);
 		DrawBox(GL_LINE_LOOP, {1.f, 1.f, 1.f, Opacity()});
 	}
 }
