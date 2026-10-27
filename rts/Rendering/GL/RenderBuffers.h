@@ -9,6 +9,7 @@
 #include "System/ContainerUtil.h"
 #include "System/Log/ILog.h"
 #include "System/FileSystem/FileHandler.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/Shaders/Shader.h"
 #include "Rendering/Shaders/ShaderHandler.h"
 
@@ -193,11 +194,15 @@ private:
 	static const std::string GetFragOutput();
 
 	static void GetShaderHeaders(std::string& vsHeader, std::string& fsHeader) {
+		// A core-profile context rejects the "compatibility" profile token
+		// outright, so only ask for it where it can actually be granted.
+		const char* vsVersion = globalRenderingInfo.glContextIsCore ? "#version 150" : "#version 150 compatibility";
+
 		if (globalRendering->supportExplicitAttribLoc) {
-			vsHeader = fmt::format("{}{}{}", "#version 150 compatibility", nl, "#extension GL_ARB_explicit_attrib_location : require");
+			vsHeader = fmt::format("{}{}{}", vsVersion, nl, "#extension GL_ARB_explicit_attrib_location : require");
 		}
 		else {
-			vsHeader = "#version 150 compatibility";
+			vsHeader = vsVersion;
 		}
 
 		fsHeader = "#version 150";
