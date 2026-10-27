@@ -21,6 +21,7 @@
 // 	THE SOFTWARE.
 #include "smmalloc.h"
 #include <stdlib.h>
+#include <cstdlib>
 
 struct Header
 {
