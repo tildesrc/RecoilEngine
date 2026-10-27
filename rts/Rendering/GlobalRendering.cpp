@@ -788,12 +788,26 @@ void CGlobalRendering::CheckGLExtensions()
 	char errMsg[2048] = {0};
 	char* ptr = &extMsg[0];
 
-	if (!GLAD_GL_ARB_multitexture       ) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " multitexture ");
-	if (!GLAD_GL_ARB_texture_env_combine) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_env_combine ");
-	if (!GLAD_GL_ARB_texture_compression) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_compression ");
-	if (!GLAD_GL_ARB_texture_float)       ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_float ");
-	if (!GLAD_GL_ARB_texture_non_power_of_two) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_non_power_of_two ");
-	if (!GLAD_GL_ARB_framebuffer_object)       ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " framebuffer_object ");
+	// Each of these ARB extensions was absorbed into core OpenGL long ago, and a
+	// core-profile context is not required to keep advertising the old extension
+	// string even though it still provides the functionality. Checking the string
+	// alone therefore rejects perfectly capable core contexts (notably on macOS,
+	// which offers core up to 4.1 and no compatibility profile above 2.1), so
+	// accept either the extension or the core version that absorbed it.
+	const auto haveExtOrCore = [](int haveExt, int haveCoreVersion) {
+		return ((haveExt != 0) || (haveCoreVersion != 0));
+	};
+
+	if (!haveExtOrCore(GLAD_GL_ARB_multitexture, GLAD_GL_VERSION_1_3)) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " multitexture ");
+	if (!haveExtOrCore(GLAD_GL_ARB_texture_compression, GLAD_GL_VERSION_1_3)) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_compression ");
+	if (!haveExtOrCore(GLAD_GL_ARB_texture_float, GLAD_GL_VERSION_3_0)) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_float ");
+	if (!haveExtOrCore(GLAD_GL_ARB_texture_non_power_of_two, GLAD_GL_VERSION_2_0)) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_non_power_of_two ");
+	if (!haveExtOrCore(GLAD_GL_ARB_framebuffer_object, GLAD_GL_VERSION_3_0)) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " framebuffer_object ");
+
+	// GL_ARB_texture_env_combine only configures the fixed-function texture
+	// environment, which a core profile does not have at all. Require it just
+	// where the fixed-function pipeline actually exists.
+	if (!globalRenderingInfo.glContextIsCore && !GLAD_GL_ARB_texture_env_combine) ptr += snprintf(ptr, sizeof(extMsg) - (ptr - extMsg), " texture_env_combine ");
 
 	if (extMsg[0] == 0)
 		return;
@@ -816,7 +830,10 @@ void CGlobalRendering::SetGLSupportFlags()
 	const std::string& glVersion = StringToLower(globalRenderingInfo.glVersion);
 
 	bool haveGLSL  = (glGetString(GL_SHADING_LANGUAGE_VERSION) != nullptr);
-	haveGLSL &= static_cast<bool>(GLAD_GL_ARB_vertex_shader && GLAD_GL_ARB_fragment_shader);
+	// GL_ARB_{vertex,fragment}_shader became core in 2.0 and a core-profile
+	// context need not advertise either string, so take the core version as
+	// equivalent evidence (see the note in CheckGLExtensions).
+	haveGLSL &= static_cast<bool>((GLAD_GL_ARB_vertex_shader && GLAD_GL_ARB_fragment_shader) || GLAD_GL_VERSION_2_0);
 	haveGLSL &= static_cast<bool>(GLAD_GL_VERSION_2_0); // we want OpenGL 2.0 core functions
 	haveGLSL |= underExternalDebug;
 
