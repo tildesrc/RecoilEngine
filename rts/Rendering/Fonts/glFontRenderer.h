@@ -71,6 +71,14 @@ private:
 	TypedRenderBuffer<VA_TYPE_TC> primaryBufferTC;
 	TypedRenderBuffer<VA_TYPE_TC> outlineBufferTC;
 
+	// saved by PushGLState in place of glPushAttrib, restored by PopGLState
+	GLboolean savedDepthTest = GL_FALSE;
+	GLboolean savedBlend = GL_FALSE;
+	GLint savedBlendSrcRGB = GL_ONE;
+	GLint savedBlendDstRGB = GL_ZERO;
+	GLint savedBlendSrcAlpha = GL_ONE;
+	GLint savedBlendDstAlpha = GL_ZERO;
+
 	static inline size_t fontShaderRefs = 0;
 	static inline std::unique_ptr<Shader::IProgramObject> fontShader = nullptr;
 	static inline size_t fontShaderColorRefs = 0;

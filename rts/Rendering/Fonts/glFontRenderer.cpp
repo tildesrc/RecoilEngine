@@ -2,6 +2,7 @@
 
 #include "glFont.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/Shaders/Shader.h"
 #include "System/Log/ILog.h"
 #include "System/SafeUtil.h"
@@ -213,8 +214,13 @@ void CglShaderFontRenderer::HandleTextureUpdate(CFontTexture& fnt, bool onlyUplo
 	if (!onlyUpload)
 		fnt.UpdateGlyphAtlasTexture();
 
+	// The query guards against uploading while a display list is being recorded.
+	// Display lists do not exist in a core profile, where GL_LIST_INDEX is an
+	// invalid enum (and there is no list to be recording into), so skip it.
 	GLint dl = 0;
-	glGetIntegerv(GL_LIST_INDEX, &dl);
+	if (!globalRenderingInfo.glContextIsCore)
+		glGetIntegerv(GL_LIST_INDEX, &dl);
+
 	if (dl == 0) {
 		fnt.UploadGlyphAtlasTextureImpl();
 	}
@@ -223,9 +229,20 @@ void CglShaderFontRenderer::HandleTextureUpdate(CFontTexture& fnt, bool onlyUplo
 void CglShaderFontRenderer::PushGLState(const CglFont& fnt)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT);
+	// glPushAttrib/glPopAttrib do not exist in a core profile (GL_INVALID_OPERATION
+	// there), so save exactly the state this function touches and restore it in
+	// PopGLState. GL_ALPHA_TEST is likewise gone; the fragment shader discards.
+	savedDepthTest = glIsEnabled(GL_DEPTH_TEST);
+	savedBlend     = glIsEnabled(GL_BLEND);
+	glGetIntegerv(GL_BLEND_SRC_RGB  , &savedBlendSrcRGB  );
+	glGetIntegerv(GL_BLEND_DST_RGB  , &savedBlendDstRGB  );
+	glGetIntegerv(GL_BLEND_SRC_ALPHA, &savedBlendSrcAlpha);
+	glGetIntegerv(GL_BLEND_DST_ALPHA, &savedBlendDstAlpha);
+
 	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_ALPHA_TEST); //just in case
+
+	if (!globalRenderingInfo.glContextIsCore)
+		glDisable(GL_ALPHA_TEST); //just in case
 	glEnable(GL_BLEND);
 	if (!userDefinedBlending)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -265,7 +282,11 @@ void CglShaderFontRenderer::PopGLState(const CglFont& fnt)
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	glPopAttrib();
+	// restore what PushGLState saved, in place of glPopAttrib
+	if (savedDepthTest) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+	if (savedBlend)     glEnable(GL_BLEND);      else glDisable(GL_BLEND);
+
+	glBlendFuncSeparate(savedBlendSrcRGB, savedBlendDstRGB, savedBlendSrcAlpha, savedBlendDstAlpha);
 }
 
 void CglShaderFontRenderer::GetStats(std::array<size_t, 8>& stats) const
