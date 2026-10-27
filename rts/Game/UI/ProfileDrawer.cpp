@@ -427,7 +427,7 @@ static void DrawProfiler(TypedRenderBuffer<VA_TYPE_C   >& rb)
 	// draw the graph lines
 	//GL::WideLineAdapterC* wla = GL::GetWideLineAdapterC();
 	//wla->Setup(buffer, globalRendering->viewSizeX, globalRendering->viewSizeY, 3.0f, CMatrix44f::ClipOrthoProj01());
-	glLineWidth(3.0f);
+	glSpringLineWidth(3.0f);
 
 	for (const auto& p: sortedProfiles) {
 		const CTimeProfiler::TimeRecord& tr = p.second;
@@ -455,7 +455,7 @@ static void DrawProfiler(TypedRenderBuffer<VA_TYPE_C   >& rb)
 		rb.Submit(GL_LINE_STRIP);
 	}
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 }
 
 

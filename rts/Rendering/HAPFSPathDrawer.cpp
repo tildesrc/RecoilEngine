@@ -294,7 +294,7 @@ void HAPFSPathDrawer::UpdateExtraTexture(int extraTex, int starty, int endy, int
 void HAPFSPathDrawer::Draw() const {
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_LIGHTING);
-	glLineWidth(3);
+	glSpringLineWidth(3);
 
 	for (const auto& p: pm->GetPathMap()) {
 		const HAPFS::CPathManager::MultiPath& multiPath = p.second;
@@ -327,7 +327,7 @@ void HAPFSPathDrawer::Draw() const {
 		Draw(&p.second.peDef);
 	}
 
-	glLineWidth(1);
+	glSpringLineWidth(1);
 }
 
 

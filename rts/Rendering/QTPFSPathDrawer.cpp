@@ -99,14 +99,14 @@ void QTPFSPathDrawer::DrawNodes(const MoveDef* md, TypedRenderBuffer<VA_TYPE_C>&
 		DrawNodeW(md, node, rb, &NODE_COLORS[nodeColour][0], 0.f);
 	}
 
-	glLineWidth(2.0f);
+	glSpringLineWidth(2.0f);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 	rb.DrawArrays(GL_QUADS);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 }
 
 void QTPFSPathDrawer::DrawCosts(const std::vector<const QTPFS::QTNode*>& nodes) const {
@@ -152,7 +152,7 @@ void QTPFSPathDrawer::GetVisibleNodes(const QTPFS::QTNode* nt, const QTPFS::Node
 
 
 void QTPFSPathDrawer::DrawPaths(const MoveDef* md, TypedRenderBuffer<VA_TYPE_C>& rb) const {
-	glLineWidth(4.0f);
+	glSpringLineWidth(4.0f);
 
 	const auto pathView = QTPFS::registry.view<QTPFS::IPath>();
 	for (const auto& pathEntity : pathView) {
@@ -176,7 +176,7 @@ void QTPFSPathDrawer::DrawPaths(const MoveDef* md, TypedRenderBuffer<VA_TYPE_C>&
 		#endif
 	}
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	#ifdef QTPFS_TRACE_PATH_SEARCHES
 	const auto& pathTraces = pm->GetPathTraces();
@@ -303,7 +303,7 @@ void QTPFSPathDrawer::DrawSearchIteration(unsigned int pathType, const std::vect
 		rb.DrawElements(GL_TRIANGLES);
 	}
 	{
-		glLineWidth(2.0f);
+		glSpringLineWidth(2.0f);
 
 		for (size_t i = 1, n = nodeIndices.size(); i < n; i++) {
 			hmx = nodeIndices[i] % mapDims.mapx;
@@ -313,7 +313,7 @@ void QTPFSPathDrawer::DrawSearchIteration(unsigned int pathType, const std::vect
 		}
 
 		rb.DrawArrays(GL_LINES);
-		glLineWidth(1.0f);
+		glSpringLineWidth(1.0f);
 	}
 }
 

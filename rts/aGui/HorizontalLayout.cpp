@@ -20,7 +20,7 @@ void HorizontalLayout::DrawSelf()
 	if (borderWidth <= 0.0f)
 		return;
 
-	glLineWidth(borderWidth);
+	glSpringLineWidth(borderWidth);
 	DrawBox(GL_LINE_LOOP, { 1.0f, 1.0f, 1.0f, Opacity() });
 }
 #endif

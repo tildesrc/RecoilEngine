@@ -84,7 +84,7 @@ void SmoothHeightMeshDrawer::Draw(float yoffset) {
 		return;
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 	glDisable(GL_TEXTURE_2D);
 	glActiveTexture(GL_TEXTURE0);
 	glDisable(GL_TEXTURE_1D);

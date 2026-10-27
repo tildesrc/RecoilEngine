@@ -44,7 +44,7 @@ void LineEdit::DrawSelf()
 	const float opacity = Opacity();
 	DrawBox(GL_QUADS, { 1.0f, 1.0f, 1.0f, opacity });
 
-	glLineWidth(1.49f);
+	glSpringLineWidth(1.49f);
 	if (hasFocus) {
 		DrawBox(GL_LINE_LOOP, { 0.0f, 0.0f, 0.0f, opacity });
 	} else {

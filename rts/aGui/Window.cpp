@@ -55,7 +55,7 @@ void Window::DrawSelf()
 	rb.DrawElements(GL_TRIANGLES);
 	sh.Disable();
 
-	glLineWidth(2.0f);
+	glSpringLineWidth(2.0f);
 	DrawBox(GL_LINE_LOOP, { 1.0f,1.0f,1.0f, opacity });
 
 	/*

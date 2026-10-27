@@ -17,6 +17,7 @@
 #include "Rendering/Units/UnitDrawer.h"
 #include "Rendering/Env/ISky.h"
 #include "Rendering/GL/FBO.h"
+#include "Rendering/GL/myGL.h"
 #include "Rendering/GL/SubState.h"
 #include "Rendering/GL/RenderBuffers.h"
 #include "Rendering/Models/3DModelPiece.hpp"
@@ -752,7 +753,7 @@ void CProjectileDrawer::DrawProjectilesMiniMap()
 
 	auto& sh = TypedRenderBuffer<VA_TYPE_C>::GetShader();
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	// Note: glPointSize(1.0f); doesn't work here on AMD drivers.
 	// AMD drivers draw huge circles instead of small point for some reason

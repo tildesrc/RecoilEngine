@@ -27,6 +27,7 @@
 #include "Rendering/IconHandler.h"
 #include "Rendering/Units/UnitDrawer.h"
 #include "Rendering/GL/glExtra.h"
+#include "Rendering/GL/myGL.h"
 #include "Rendering/Map/InfoTexture/IInfoTextureHandler.h"
 #include "Rendering/Textures/Bitmap.h"
 #include "Rendering/Textures/NamedTextures.h"
@@ -3070,7 +3071,7 @@ void CGuiHandler::DrawHilightQuad(const IconInfo& icon)
 void CGuiHandler::DrawButtons() // Only called by Draw
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 	font->Begin();
 
 	// frame box
@@ -3199,9 +3200,9 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 			} else {
 				glColor4f(1.0f, 1.0f, 1.0f, 0.50f);
 			}
-			glLineWidth(1.49f);
+			glSpringLineWidth(1.49f);
 			DrawIconFrame(icon);
-			glLineWidth(1.0f);
+			glSpringLineWidth(1.0f);
 		}
 	}
 
@@ -3727,9 +3728,9 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 
 	if (!onMiniMap) {
 		glBlendFunc((GLenum) cmdColors.SelectedBlendSrc(), (GLenum) cmdColors.SelectedBlendDst());
-		glLineWidth(cmdColors.SelectedLineWidth());
+		glSpringLineWidth(cmdColors.SelectedLineWidth());
 	} else {
-		glLineWidth(1.49f);
+		glSpringLineWidth(1.49f);
 	}
 
 	// draw the ranges for the unit that is being pointed at
@@ -3946,7 +3947,7 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 		}
 	}
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	if (!onMiniMap) {
 		glDepthMask(GL_TRUE);
@@ -4129,7 +4130,7 @@ void CGuiHandler::DrawFormationFrontOrder(
 
 	if (onMinimap) {
 		pos1 += (pos1 - pos2);
-		glLineWidth(2.0f);
+		glSpringLineWidth(2.0f);
 		glBegin(GL_LINES);
 		glVertexf3(pos1);
 		glVertexf3(pos2);
@@ -4238,7 +4239,7 @@ static void DrawCornerPosts(const float3& pos0, const float3& pos1)
 	const float3 corner3(pos1.x, CGround::GetHeightAboveWater(pos1.x, pos0.z, false), pos0.z);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glLineWidth(2.0f);
+	glSpringLineWidth(2.0f);
 	glBegin(GL_LINES);
 		glColor4f(1.0f, 1.0f, 0.0f, 0.9f);
 		glVertexf3(corner0); glVertexf3(corner0 + lineVector);
@@ -4248,7 +4249,7 @@ static void DrawCornerPosts(const float3& pos0, const float3& pos1)
 		glVertexf3(corner2); glVertexf3(corner2 + lineVector);
 		glVertexf3(corner3); glVertexf3(corner3 + lineVector);
 	glEnd();
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 }
 
 
@@ -4436,13 +4437,13 @@ void CGuiHandler::DrawSelectCircle(const float3& pos, float radius,
 	// draw the center line
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glColor4f(color[0], color[1], color[2], 0.9f);
-	glLineWidth(2.0f);
+	glSpringLineWidth(2.0f);
 	const float3 base(pos.x, CGround::GetHeightAboveWater(pos.x, pos.z, false), pos.z);
 	glBegin(GL_LINES);
 		glVertexf3(base);
 		glVertexf3(base + float3(0.0f, 128.0f, 0.0f));
 	glEnd();
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	glEnable(GL_FOG);
 }

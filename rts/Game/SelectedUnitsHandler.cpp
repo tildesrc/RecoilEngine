@@ -624,7 +624,7 @@ void CSelectedUnitsHandler::Draw()
 	glEnable(GL_BLEND); // for line smoothing
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glLineWidth(cmdColors.UnitBoxLineWidth());
+	glSpringLineWidth(cmdColors.UnitBoxLineWidth());
 
 	SColor color1(cmdColors.unitBox);
 	SColor color2(cmdColors.unitBox);
@@ -728,7 +728,7 @@ void CSelectedUnitsHandler::Draw()
 		}
 	}
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
@@ -940,7 +940,7 @@ void CSelectedUnitsHandler::DrawCommands()
 	glEnable(GL_BLEND);
 	glBlendFunc((GLenum) cmdColors.QueuedBlendSrc(), (GLenum) cmdColors.QueuedBlendDst());
 
-	glLineWidth(cmdColors.QueuedLineWidth());
+	glSpringLineWidth(cmdColors.QueuedLineWidth());
 
 	if (selectedGroup != -1) {
 		const auto& groupHandler = uiGroupHandlers[gu->myTeam];
@@ -958,7 +958,7 @@ void CSelectedUnitsHandler::DrawCommands()
 	// draw the commands from AIs
 	waitCommandsAI.DrawCommands();
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	glEnable(GL_DEPTH_TEST);
 }

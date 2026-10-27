@@ -557,7 +557,7 @@ void LuaOpenGL::ResetGLState()
 	glDisable(GL_CLIP_PLANE4);
 	glDisable(GL_CLIP_PLANE5);
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 	glPointSize(1.0f);
 
 	glDisable(GL_POINT_SPRITE);
@@ -4014,7 +4014,7 @@ int LuaOpenGL::LineWidth(lua_State* L)
 	CondWarnDeprecatedGL(L, __func__);
 	const float width = luaL_checkfloat(L, 1);
 	if (width <= 0.0f) luaL_argerror(L, 1, "Incorrect Width (must be greater zero)");
-	glLineWidth(width);
+	glSpringLineWidth(width);
 	return 0;
 }
 

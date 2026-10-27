@@ -1507,20 +1507,20 @@ void CMiniMap::DrawCameraFrustumAndMouseSelection()
 			rb.AddVertex({ pts[i].first, pts[i].second });
 		}
 
-		glLineWidth(2.5f);
+		glSpringLineWidth(2.5f);
 		sh.Enable();
 
 		sh.SetUniform("ucolor", 0.0f, 0.0f, 0.0f, 0.5f);
 		rb.DrawArrays(GL_LINE_LOOP, false);
 
-		glLineWidth(1.5f);
+		glSpringLineWidth(1.5f);
 		sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 0.75f);
 		rb.DrawArrays(GL_LINE_LOOP);
 
 		sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
 		sh.Disable();
 
-		glLineWidth(1.0f);
+		glSpringLineWidth(1.0f);
 	}
 
 
@@ -1532,7 +1532,7 @@ void CMiniMap::DrawCameraFrustumAndMouseSelection()
 
 		//glBlendFunc((GLenum)cmdColors.MouseBoxBlendSrc(),
 		//            (GLenum)cmdColors.MouseBoxBlendDst());
-		glLineWidth(cmdColors.MouseBoxLineWidth());
+		glSpringLineWidth(cmdColors.MouseBoxLineWidth());
 
 		rb.AddVertices({
 			{oldMapPos.x, oldMapPos.z},
@@ -1546,7 +1546,7 @@ void CMiniMap::DrawCameraFrustumAndMouseSelection()
 		rb.DrawArrays(GL_LINE_LOOP);
 		sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
 		sh.Disable();
-		glLineWidth(1.0f);
+		glSpringLineWidth(1.0f);
 		//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 
@@ -2028,9 +2028,9 @@ void CMiniMap::DrawWorldStuff() const
 	}
 
 
-	glLineWidth(2.5f);
+	glSpringLineWidth(2.5f);
 	lineDrawer.DrawAll();
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 
 	// draw the selection shape, and some ranges
 	if (drawCommands > 0)

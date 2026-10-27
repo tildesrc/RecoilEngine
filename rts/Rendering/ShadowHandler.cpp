@@ -166,13 +166,13 @@ void CShadowHandler::DrawFrustumDebug() const
 	rb.AddVertices({ { shadCam->GetFrustumVert(7) }, { shadCam->GetFrustumVert(4) } }); // FTL - FBL
 
 	auto& sh = rb.GetShader();
-	glLineWidth(2.0f);
+	glSpringLineWidth(2.0f);
 	sh.Enable();
 	sh.SetUniform("ucolor", 0.0f, 0.0f, 1.0f, 1.0f);
 	rb.DrawArrays(GL_LINES);
 	sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
 	sh.Disable();
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 }
 
 void CShadowHandler::FreeFBOAndTextures() {

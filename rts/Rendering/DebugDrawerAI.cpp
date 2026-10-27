@@ -340,7 +340,7 @@ void DebugDrawerAI::Graph::Draw()
 					1.0f
 				};
 
-				glLineWidth(line.lineWidth);
+				glSpringLineWidth(line.lineWidth);
 
 				for (auto pit = data.begin(); pit != data.end(); ++pit) {
 					auto npit = pit; ++npit;
@@ -358,7 +358,7 @@ void DebugDrawerAI::Graph::Draw()
 				rb.DrawArrays(GL_LINE_STRIP);
 				sh.Disable();
 
-				glLineWidth(1.0f);
+				glSpringLineWidth(1.0f);
 
 				lineNum += 1;
 			}

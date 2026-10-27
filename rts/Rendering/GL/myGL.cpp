@@ -744,6 +744,16 @@ void glSafeDeleteProgram(GLuint program)
 void glSpringLineWidth(float width)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
+
+	// Only a core profile is strict here: it need support no width but 1.0 and
+	// raises GL_INVALID_VALUE outside GL_ALIASED_LINE_WIDTH_RANGE, leaving the
+	// width unchanged. A compatibility profile clamps silently, so pass through
+	// untouched there and keep existing behaviour byte-for-byte.
+	if (!globalRenderingInfo.glContextIsCore) {
+		glLineWidth(width);
+		return;
+	}
+
 	static float widthRange[2] = {0.0f, 0.0f};
 
 	if (widthRange[1] <= 0.0f) {

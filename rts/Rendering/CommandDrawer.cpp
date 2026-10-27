@@ -77,7 +77,7 @@ void CommandDrawer::DrawLuaQueuedUnitSetCommands() const
 	glBlendFunc((GLenum)cmdColors.QueuedBlendSrc(),
 	            (GLenum)cmdColors.QueuedBlendDst());
 
-	glLineWidth(cmdColors.QueuedLineWidth());
+	glSpringLineWidth(cmdColors.QueuedLineWidth());
 
 	for (const auto& [unitID, qDrawDepth] : luaQueuedUnitSet) {
 		const CUnit* unit = unitHandler.GetUnit(unitID);
@@ -88,7 +88,7 @@ void CommandDrawer::DrawLuaQueuedUnitSetCommands() const
 		Draw(unit->commandAI, qDrawDepth);
 	}
 
-	glLineWidth(1.0f);
+	glSpringLineWidth(1.0f);
 	glEnable(GL_DEPTH_TEST);
 }
 
