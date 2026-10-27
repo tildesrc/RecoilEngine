@@ -36,9 +36,10 @@ find_path(LIBUNWIND_PKGCONFIG_DIR libunwind.pc
 )
 
 if (APPLE AND LIBUNWIND_INCLUDE_DIR)
-  # FIXME: OS X 10.10 doesn't have static libunwind.a only dynamic libunwind.dylib;
-  #        link with "-framework Cocoa"
-  set(LIBUNWIND_LIBRARY "-framework Cocoa")
+  # macOS ships the unwind API as part of libSystem, which is linked implicitly,
+  # so no separate library is needed. Use a marker value to satisfy the
+  # found-ness checks below without naming a file to link against.
+  set(LIBUNWIND_LIBRARY "libSystem")
 else ()
   find_library(LIBUNWIND_LIBRARY NAMES unwind ${LIB_STD_ARGS})
 endif ()
@@ -50,12 +51,21 @@ if (LIBUNWIND_INCLUDE_DIR AND LIBUNWIND_LIBRARY)
   set(LIBUNWIND_LIBRARIES ${LIBUNWIND_LIBRARY})
   
   if (NOT TARGET libunwind::libunwind)
-    add_library(libunwind::libunwind UNKNOWN IMPORTED)
-    set_target_properties(libunwind::libunwind PROPERTIES
-                          INTERFACE_COMPILE_DEFINITIONS ${LIBUNWIND_DEFINITIONS}
-                          INTERFACE_INCLUDE_DIRECTORIES ${LIBUNWIND_INCLUDE_DIR}
-                          IMPORTED_LOCATION ${LIBUNWIND_LIBRARY}
-    )
+    if (APPLE)
+      # No IMPORTED_LOCATION: there is no standalone library file to link.
+      add_library(libunwind::libunwind INTERFACE IMPORTED)
+      set_target_properties(libunwind::libunwind PROPERTIES
+                            INTERFACE_COMPILE_DEFINITIONS ${LIBUNWIND_DEFINITIONS}
+                            INTERFACE_INCLUDE_DIRECTORIES ${LIBUNWIND_INCLUDE_DIR}
+      )
+    else ()
+      add_library(libunwind::libunwind UNKNOWN IMPORTED)
+      set_target_properties(libunwind::libunwind PROPERTIES
+                            INTERFACE_COMPILE_DEFINITIONS ${LIBUNWIND_DEFINITIONS}
+                            INTERFACE_INCLUDE_DIRECTORIES ${LIBUNWIND_INCLUDE_DIR}
+                            IMPORTED_LOCATION ${LIBUNWIND_LIBRARY}
+      )
+    endif ()
   endif()
 endif()
 
