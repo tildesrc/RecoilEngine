@@ -34,6 +34,9 @@ CR_REG_METADATA(CProjectile,
 	CR_MEMBER(deleteMe),
 
 	CR_MEMBER(drawSorted),
+	// unsynced render hint, set per class in the constructors; nothing to
+	// serialize, but creg still needs to know the byte is accounted for
+	CR_IGNORED(mtDrawSafe),
 	CR_MEMBER(blockPreciseCol),
 
 	CR_MEMBER_BEGINFLAG(CM_Config),
