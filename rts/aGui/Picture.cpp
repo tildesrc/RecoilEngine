@@ -5,9 +5,11 @@
 
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GL/RenderBuffers.h"
+#include "Rendering/GlobalRendering.h"
 #include "Rendering/Shaders/Shader.h"
 #include "Rendering/Textures/Bitmap.h"
 #include "System/Log/ILog.h"
+#include "System/Matrix44f.h"
 
 namespace agui
 {
@@ -58,6 +60,9 @@ namespace agui
 
 			glBindTexture(GL_TEXTURE_2D, texture);
 			sh.Enable();
+			// see the note in GuiElement::DrawBox
+			const CMatrix44f proj = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+			sh.SetUniformMatrix4x4("transformMatrix", false, &proj.m[0]);
 			rb.DrawElements(GL_TRIANGLES);
 			sh.Disable();
 			glBindTexture(GL_TEXTURE_2D, 0);
