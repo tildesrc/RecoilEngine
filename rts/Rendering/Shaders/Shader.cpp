@@ -187,8 +187,10 @@ namespace Shader {
 		if (!versionStr.empty()) EnsureEndsWith(&versionStr, "\n");
 		if (!defFlags.empty())   EnsureEndsWith(&defFlags,   "\n");
 
+		// NOTE: versionStr has to come first with nothing at all ahead of it. The
+		// GLSL spec does allow comments before #version, but Apple's compiler
+		// rejects them ("syntax error: #version"), so do not emit a banner here.
 		std::vector<const GLchar*> sources = {
-			"// SHADER VERSION\n",
 			versionStr.c_str(),
 			"// SHADER FLAGS\n",
 			defFlags.c_str(),
@@ -208,7 +210,14 @@ namespace Shader {
 		if (!res->valid && logReporting) {
 			const std::string& name = srcFile.find("void main()") != std::string::npos ? "unknown" : srcFile;
 			LOG_L(L_WARNING, "[GLSL-SO::%s] shader-object name: %s, compile-log:\n%s\n", __FUNCTION__, name.c_str(), res->log.c_str());
-			LOG_L(L_WARNING, "\n%s%s%s%s%s%s%s", sources[0], sources[1], sources[2], sources[3], sources[4], sources[5], sources[6]);
+
+			// concatenate rather than indexing fixed positions, so this cannot
+			// read out of bounds if the source list above ever changes length
+			std::string fullSrc;
+			for (const GLchar* src: sources)
+				fullSrc += src;
+
+			LOG_L(L_WARNING, "\n%s", fullSrc.c_str());
 		}
 
 		return res;
