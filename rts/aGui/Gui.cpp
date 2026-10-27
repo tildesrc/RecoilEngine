@@ -29,8 +29,13 @@ void Gui::Draw()
 {
 	Clean();
 
-	glDisable(GL_TEXTURE_2D);
-	glDisable(GL_ALPHA_TEST);
+	// GL_TEXTURE_2D as an enable-cap and GL_ALPHA_TEST are both gone from the
+	// core profile (texturing follows from the shader, and the fragment shader
+	// does its own alpha discard), where they raise GL_INVALID_ENUM.
+	if (!globalRenderingInfo.glContextIsCore) {
+		glDisable(GL_TEXTURE_2D);
+		glDisable(GL_ALPHA_TEST);
+	}
 	glEnable(GL_BLEND);
 	// The element shaders now supply this projection themselves. None of these
 	// entry points exist in a core profile (gluOrtho2D needs GLU besides), so
