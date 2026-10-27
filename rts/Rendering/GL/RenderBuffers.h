@@ -6,6 +6,7 @@
 #include "VAO.h"
 
 #include "System/TypeToStr.h"
+#include <typeinfo>
 #include "System/ContainerUtil.h"
 #include "System/Log/ILog.h"
 #include "System/FileSystem/FileHandler.h"
@@ -1046,9 +1047,16 @@ inline void TypedRenderBuffer<T>::InitVAO() const
 	if (ebo)
 		ebo->Unbind();
 
-	//restore default state
-	for (const AttributeDef& ad : T::attributeDefs) {
-		glDisableVertexAttribArray(ad.index);
+	// The enables above were recorded into the VAO that was bound at the time,
+	// so the default state never changed and there is nothing to undo. Worse,
+	// this runs after vao.Unbind(): vertex-attrib state belongs to a VAO, and in
+	// a core profile VAO 0 is not a real object, so each of these raises
+	// GL_INVALID_OPERATION. Only touch the default VAO where one exists.
+	if (!globalRenderingInfo.glContextIsCore) {
+		//restore default state
+		for (const AttributeDef& ad : T::attributeDefs) {
+			glDisableVertexAttribArray(ad.index);
+		}
 	}
 }
 
