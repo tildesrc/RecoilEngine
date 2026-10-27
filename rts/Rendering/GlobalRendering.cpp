@@ -956,7 +956,16 @@ void CGlobalRendering::QueryGLMaxVals()
 {
 	// maximum 2D texture size
 	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
-	glGetIntegerv(GL_MAX_TEXTURE_COORDS, &maxTexSlots);
+
+	// GL_MAX_TEXTURE_COORDS counts fixed-function texture-coordinate sets, which
+	// a core profile does not have: the query fails with GL_INVALID_ENUM and
+	// leaves maxTexSlots at its default of 2. Fragment sampler slots are the
+	// meaningful equivalent there.
+	if (globalRenderingInfo.glContextIsCore)
+		glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTexSlots);
+	else
+		glGetIntegerv(GL_MAX_TEXTURE_COORDS, &maxTexSlots);
+
 	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxFragShSlots);
 	glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxCombShSlots);
 
@@ -974,7 +983,14 @@ void CGlobalRendering::QueryGLMaxVals()
 		glGetIntegerv(GL_MAX_SHADER_STORAGE_BLOCK_SIZE,      &glslMaxStorageBufferSize);
 	}
 
-	glGetIntegerv(GL_MAX_VARYING_FLOATS,                 &glslMaxVaryings);
+	// Likewise GL_MAX_VARYING_FLOATS: removed in core, where the query fails and
+	// leaves glslMaxVaryings at 0 (and 0/4 is still 0). Fragment-input
+	// components are the modern spelling of the same limit.
+	if (globalRenderingInfo.glContextIsCore)
+		glGetIntegerv(GL_MAX_FRAGMENT_INPUT_COMPONENTS, &glslMaxVaryings);
+	else
+		glGetIntegerv(GL_MAX_VARYING_FLOATS,             &glslMaxVaryings);
+
 	glGetIntegerv(GL_MAX_VERTEX_ATTRIBS,                 &glslMaxAttributes);
 	glGetIntegerv(GL_MAX_DRAW_BUFFERS,                   &glslMaxDrawBuffers);
 	glGetIntegerv(GL_MAX_ELEMENTS_INDICES,               &glslMaxRecommendedIndices);
