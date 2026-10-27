@@ -5,17 +5,17 @@ static constexpr const char* vsRenderBufferSrc = R"(
 // VS input attributes
 %s
 
-// Supplied explicitly because gl_ModelViewProjectionMatrix does not exist in a
-// core profile. Defaults to identity so call sites that have not been converted
-// yet still link and draw in clip space rather than failing to compile.
-uniform mat4 transformMatrix = mat4(1.0);
+// Transform declaration: a core profile has no gl_ModelViewProjectionMatrix, so
+// one is declared and supplied by the call site there. A compatibility context
+// keeps using the builtin, leaving unconverted call sites working as before.
+%s
 
 // VS output attributes
 %s
 
 void main() {
 %s
-	gl_Position = transformMatrix * %s;
+	gl_Position = %s * %s;
 }
 )";
 

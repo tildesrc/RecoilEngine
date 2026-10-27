@@ -129,11 +129,21 @@ public:
 		const std::string varyingsVS = (varyingsData.empty()) ? "" : fmt::sprintf(fmtString, "out", nl, varyingsData);
 		const std::string varyingsFS = (varyingsData.empty()) ? "" : fmt::sprintf(fmtString, "in", nl, varyingsData);
 
+		// see the note in RenderBuffers.inl
+		const char* transformDecl = globalRenderingInfo.glContextIsCore
+			? "uniform mat4 transformMatrix = mat4(1.0);"
+			: "";
+		const char* transformName = globalRenderingInfo.glContextIsCore
+			? "transformMatrix"
+			: "gl_ModelViewProjectionMatrix";
+
 		vertSrc = fmt::sprintf(vertSrc,
 			vsHeader,
 			vsInputs,
+			transformDecl,
 			varyingsVS,
 			vsAssignment,
+			transformName,
 			vsPosVertex
 		);
 

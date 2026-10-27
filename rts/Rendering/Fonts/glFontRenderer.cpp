@@ -34,6 +34,29 @@ void main() {
 }
 )";
 
+// Compatibility-profile variant of the above: keeps gl_ModelViewProjectionMatrix
+// so that callers which have not been converted to supply a matrix keep working
+// exactly as before on drivers that still offer a compatibility context.
+static constexpr const char* vsFont330Compat = R"(
+#version 150 compatibility
+#extension GL_ARB_explicit_attrib_location : enable
+
+layout (location = 0) in vec3 pos;
+layout (location = 1) in vec2 uv;
+layout (location = 2) in vec4 col;
+
+out Data {
+	vec4 vCol;
+	vec2 vUV;
+};
+
+void main() {
+	vCol = col;
+	vUV  = uv;
+	gl_Position = gl_ModelViewProjectionMatrix * vec4(pos, 1.0);
+}
+)";
+
 static constexpr const char* fsFont330 = R"(
 #version 150
 
@@ -145,9 +168,11 @@ CglShaderFontRenderer::CglShaderFontRenderer()
 
 	LOG("[CglFont::%s] Creating Font shaders: GLAD_GL_ARB_explicit_attrib_location = %s", __func__, globalRendering->supportExplicitAttribLoc ? "true" : "false");
 	if (globalRendering->supportExplicitAttribLoc) {
-		fontShader->AttachShaderObject(new Shader::GLSLShaderObject(GL_VERTEX_SHADER  , vsFont330));
+		const char* vsFont = globalRenderingInfo.glContextIsCore ? vsFont330 : vsFont330Compat;
+
+		fontShader->AttachShaderObject(new Shader::GLSLShaderObject(GL_VERTEX_SHADER  , vsFont));
 		fontShader->AttachShaderObject(new Shader::GLSLShaderObject(GL_FRAGMENT_SHADER, fsFont330));
-		fontShaderColor->AttachShaderObject(new Shader::GLSLShaderObject(GL_VERTEX_SHADER  , vsFont330));
+		fontShaderColor->AttachShaderObject(new Shader::GLSLShaderObject(GL_VERTEX_SHADER  , vsFont));
 		fontShaderColor->AttachShaderObject(new Shader::GLSLShaderObject(GL_FRAGMENT_SHADER, fsFontColor330));
 	}
 	else {
@@ -259,13 +284,19 @@ void CglShaderFontRenderer::PushGLState(const CglFont& fnt)
 		? transformMatrix
 		: globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
 
+	// the compatibility variant of the shader has no mvp uniform; it still reads
+	// gl_ModelViewProjectionMatrix, so leave that path exactly as it was
+	const bool setMVP = globalRenderingInfo.glContextIsCore;
+
 	if (fnt.HasColor()) {
 		fontShaderColor->Enable();
-		fontShaderColor->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
+		if (setMVP)
+			fontShaderColor->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
 	}
 	else {
 		fontShader->Enable();
-		fontShader->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
+		if (setMVP)
+			fontShader->SetUniformMatrix4x4("mvp", false, &mvp.m[0]);
 	}
 }
 
