@@ -99,6 +99,10 @@ FILESYSTEM_TEST_CASE("ExecuteProcess executes the subprocess child")
 	args[0] = "cmd.exe";
 	args[1] = "/C";
 	args[2] = "type nul > \"" + marker + "\"";
+	#elif defined(__APPLE__)
+	// macOS keeps touch in /usr/bin; /bin holds only a small shell toolset
+	args[0] = "/usr/bin/touch";
+	args[1] = marker;
 	#else
 	args[0] = "/bin/touch";
 	args[1] = marker;
