@@ -20,6 +20,7 @@
 
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/Textures/Bitmap.h"
 #include "System/Config/ConfigHandler.h"
 #include "System/Exceptions.h"
@@ -1333,12 +1334,19 @@ void CFontTexture::CreateTexture(const int width, const int height, const bool i
 	// when all potatoes die.
 
 #ifdef SUPPORT_AMD_HACKS_HERE
+	// GL_ALPHA does not exist in a core profile, and the no-shader fallback this
+	// format is kept for is fixed-function and unavailable there anyway, so a
+	// core context always takes the GL_R8/GL_RED path below.
+	const bool useLegacyAlphaFormat = !globalRenderingInfo.glContextIsCore;
+
 	constexpr GLint swizzleMaskF[] = { GL_ALPHA, GL_ALPHA, GL_ALPHA, GL_ALPHA };
 	constexpr GLint swizzleMaskD[] = { GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA };
-	if (needsColor)
-		glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMaskD);
-	else
-		glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMaskF);
+	if (useLegacyAlphaFormat) {
+		if (needsColor)
+			glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMaskD);
+		else
+			glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMaskF);
+	}
 #endif
 	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
@@ -1349,14 +1357,17 @@ void CFontTexture::CreateTexture(const int width, const int height, const bool i
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
 	else
 #ifdef SUPPORT_AMD_HACKS_HERE
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 1, 1, 0, GL_ALPHA, GL_UNSIGNED_BYTE, nullptr);
+		if (useLegacyAlphaFormat)
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 1, 1, 0, GL_ALPHA, GL_UNSIGNED_BYTE, nullptr);
+		else
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 #else
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
 #endif
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 #ifdef SUPPORT_AMD_HACKS_HERE
-	if (!needsColor)
+	if (useLegacyAlphaFormat && !needsColor)
 		glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMaskD);
 #endif
 
@@ -1544,7 +1555,11 @@ void CFontTexture::UploadGlyphAtlasTextureImpl()
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texWidth, texHeight, 0, GL_BGRA,  GL_UNSIGNED_BYTE, atlasUpdate.GetRawMem());
 	else
 	#ifdef SUPPORT_AMD_HACKS_HERE
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, texWidth, texHeight, 0, GL_ALPHA, GL_UNSIGNED_BYTE, atlasUpdate.GetRawMem());
+		// see the note on useLegacyAlphaFormat in CreateTexture
+		if (!globalRenderingInfo.glContextIsCore)
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, texWidth, texHeight, 0, GL_ALPHA, GL_UNSIGNED_BYTE, atlasUpdate.GetRawMem());
+		else
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, texWidth, texHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasUpdate.GetRawMem());
 	#else
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, texWidth, texHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasUpdate.GetRawMem());
 	#endif
