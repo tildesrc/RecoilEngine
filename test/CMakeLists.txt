@@ -425,9 +425,11 @@ endif()
 		)
 	if (WIN32)
 		list(APPEND test_src "${ENGINE_SOURCE_DIR}/System/Platform/Win/CpuTopology.cpp")
-	else (WIN32)
+	elseif (APPLE)
+		list(APPEND test_src "${ENGINE_SOURCE_DIR}/System/Platform/Mac/CpuTopology.cpp")
+	else ()
 		list(APPEND test_src "${ENGINE_SOURCE_DIR}/System/Platform/Linux/CpuTopology.cpp")
-	endif (WIN32)
+	endif ()
 	set(test_libs
 			${WINMM_LIBRARY}
 		)
@@ -442,6 +444,10 @@ endif()
 
 ################################################################################
 ### Mutex
+# Compares a futex-based mutex against std::mutex. The non-Windows path uses
+# SYS_futex / FUTEX_*_PRIVATE directly, which macOS does not have at all, so the
+# test does not apply there.
+if (NOT APPLE)
 	set(test_name Mutex)
 	set(test_src
 			"${CMAKE_CURRENT_SOURCE_DIR}/other/testMutex.cpp"
@@ -458,6 +464,7 @@ endif()
 
 	set(test_flags "-DNOT_USING_CREG -DBUILDING_AI")
 	add_spring_test(${test_name} "${test_src}" "${test_libs}" "${test_flags}")
+endif ()
 
 ################################################################################
 ### Ellipsoid

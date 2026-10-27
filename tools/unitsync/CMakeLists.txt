@@ -107,11 +107,17 @@ if (WIN32)
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Win/WinVersion.cpp")
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/SharedLib.cpp")
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Win/DllLib.cpp")
-else (WIN32)
+elseif (APPLE)
+	# Linux/CpuTopology.cpp is sched_getaffinity/cpu_set_t based and does not
+	# build on macOS; Hardware and ThreadSupport are plain POSIX and do.
+	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Mac/CpuTopology.cpp")
+	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Linux/Hardware.cpp")
+	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Linux/ThreadSupport.cpp")
+else ()
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Linux/CpuTopology.cpp")
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Linux/Hardware.cpp")
 	list(APPEND main_files "${ENGINE_SRC_ROOT}/System/Platform/Linux/ThreadSupport.cpp")
-endif (WIN32)
+endif ()
 
 set(unitsync_files
 	${sources_engine_System_FileSystem}

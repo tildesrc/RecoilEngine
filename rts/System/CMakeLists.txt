@@ -159,6 +159,11 @@ set(sources_engine_System_Platform_Windows
 set(sources_engine_System_Threading_Mac
 		"${CMAKE_CURRENT_SOURCE_DIR}/Platform/Mac/Signal.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/Platform/Mac/CpuTopology.cpp"
+		# the Linux versions of these are plain POSIX and build fine on macOS;
+		# mirror sources_engine_System_Threading_Linux so that targets taking
+		# only this list (the unit tests, for one) still link
+		"${CMAKE_CURRENT_SOURCE_DIR}/Platform/Linux/ThreadSupport.cpp"
+		"${CMAKE_CURRENT_SOURCE_DIR}/Platform/Linux/SoLib.cpp"
 	)
 set(sources_engine_System_Threading_Linux
 		"${CMAKE_CURRENT_SOURCE_DIR}/Platform/Linux/CpuTopology.cpp"
