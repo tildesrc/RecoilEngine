@@ -7,6 +7,7 @@
 
 #include "GuiElement.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/GL/myGL.h"
 #include "System/Log/ILog.h"
 
@@ -29,11 +30,16 @@ void Gui::Draw()
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_ALPHA_TEST);
 	glEnable(GL_BLEND);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluOrtho2D(0, 1, 0, 1);
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	// The element shaders now supply this projection themselves. None of these
+	// entry points exist in a core profile (gluOrtho2D needs GLU besides), so
+	// only set up the fixed-function stack where it is actually available.
+	if (!globalRenderingInfo.glContextIsCore) {
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+		gluOrtho2D(0, 1, 0, 1);
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+	}
 	for (ElList::reverse_iterator it = elements.rbegin(); it != elements.rend(); ++it) {
 		(*it).element->Draw();
 	}

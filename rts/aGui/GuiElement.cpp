@@ -5,7 +5,9 @@
 
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GL/RenderBuffers.h"
+#include "Rendering/GlobalRendering.h"
 #include "Rendering/Shaders/Shader.h"
+#include "System/Matrix44f.h"
 
 namespace agui
 {
@@ -140,6 +142,11 @@ void GuiElement::DrawBox(int primType, const SColor& color)
 	auto& sh = rb.GetShader();
 
 	sh.Enable();
+	// aGui positions everything in a [0,1] space (see PixelToGlX/Y), which used
+	// to be mapped by the fixed-function projection set up in Gui::Draw(). That
+	// does not exist in a core profile, so hand the shader the same ortho.
+	const CMatrix44f proj = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+	sh.SetUniformMatrix4x4("transformMatrix", false, &proj.m[0]);
 	switch (primType)
 	{
 	case GL_QUADS: {

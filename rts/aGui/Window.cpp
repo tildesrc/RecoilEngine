@@ -5,6 +5,8 @@
 #include "Rendering/GL/myGL.h"
 #include "Rendering/Fonts/glFont.h"
 #include "Rendering/GL/RenderBuffers.h"
+#include "Rendering/GlobalRendering.h"
+#include "System/Matrix44f.h"
 
 namespace agui
 {
@@ -47,6 +49,9 @@ void Window::DrawSelf()
 		{ pos[0] + size[0], pos[1] + size[1] - titleHeight, color }
 	);
 	sh.Enable();
+	// see the note in GuiElement::DrawBox
+	const CMatrix44f proj = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+	sh.SetUniformMatrix4x4("transformMatrix", false, &proj.m[0]);
 	rb.DrawElements(GL_TRIANGLES);
 	sh.Disable();
 
