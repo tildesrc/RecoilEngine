@@ -6,6 +6,7 @@
 #include "Rendering/Shaders/GLSLCopyState.h"
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 
 #include "System/SafeUtil.h"
 #include "System/StringUtil.h"
@@ -505,6 +506,20 @@ namespace Shader {
 	bool GLSLProgramObject::Validate() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		GLint validated = 0;
+
+		// glValidateProgram reports whether the program can execute given the
+		// CURRENT GL state, not whether it linked. A core profile requires a
+		// bound vertex array object to draw, so calling this outside of a draw
+		// setup fails with "No vertex array object bound" and would clobber the
+		// link-time validity assigned below. Report nothing rather than turn a
+		// state problem into a program one.
+		if (globalRenderingInfo.glContextIsCore) {
+			GLint boundVAO = 0;
+			glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &boundVAO);
+
+			if (boundVAO == 0)
+				return valid;
+		}
 
 		glValidateProgram(objID);
 		glGetProgramiv(objID, GL_VALIDATE_STATUS, &validated);
