@@ -5,6 +5,8 @@
 #include "Rendering/GL/VertexArrayTypes.h"
 #include "Rendering/GL/RenderBuffers.h"
 
+#include "System/Matrix44f.h"
+
 class CglFont;
 class CFontTexture;
 class CglFontRenderer {
@@ -24,11 +26,22 @@ public:
 
 	void SetUserDefinedBlending(bool enableUserDefinedBlending) { userDefinedBlending = enableUserDefinedBlending; };
 
+	// Transform applied to text vertices. gl_ModelViewProjectionMatrix does not
+	// exist in a core profile, so callers that do not print in screen-pixel
+	// space must say which projection their coordinates are in; aGui, for
+	// instance, prints FONT_NORM coordinates against a [0,1] ortho. When unset
+	// the renderer falls back to the screen matrices.
+	void SetTransformMatrix(const CMatrix44f& m) { transformMatrix = m; haveTransformMatrix = true; }
+	void ResetTransformMatrix() { haveTransformMatrix = false; }
+
 	static std::unique_ptr<CglFontRenderer> CreateInstance();
 	static void DeleteInstance(std::unique_ptr<CglFontRenderer>& instance);
 protected:
 	GLint currProgID = 0;
 	bool userDefinedBlending = false;
+
+	CMatrix44f transformMatrix;
+	bool haveTransformMatrix = false;
 
 	// should be enough to hold all data for a given frame
 	static constexpr size_t NUM_BUFFER_ELEMS = (1 << 14);

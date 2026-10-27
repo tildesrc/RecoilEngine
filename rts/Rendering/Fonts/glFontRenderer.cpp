@@ -238,7 +238,9 @@ void CglShaderFontRenderer::PushGLState(const CglFont& fnt)
 	// matrix has to be supplied explicitly. Text is overwhelmingly drawn in
 	// screen space; in-world (3D) text still needs the caller's matrix plumbed
 	// through here.
-	const CMatrix44f mvp = globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
+	const CMatrix44f mvp = haveTransformMatrix
+		? transformMatrix
+		: globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
 
 	if (fnt.HasColor()) {
 		fontShaderColor->Enable();

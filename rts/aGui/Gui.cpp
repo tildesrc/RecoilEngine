@@ -8,6 +8,8 @@
 #include "GuiElement.h"
 #include "Rendering/GlobalRendering.h"
 #include "Rendering/GlobalRenderingInfo.h"
+#include "Rendering/Fonts/glFont.h"
+#include "System/Matrix44f.h"
 #include "Rendering/GL/myGL.h"
 #include "System/Log/ILog.h"
 
@@ -40,9 +42,18 @@ void Gui::Draw()
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
 	}
+	// aGui prints with FONT_NORM, i.e. in the same [0,1] space its boxes use,
+	// so the font needs that projection rather than the screen-pixel default.
+	const CMatrix44f proj = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+	font->SetTransformMatrix(proj);
+	smallFont->SetTransformMatrix(proj);
+
 	for (ElList::reverse_iterator it = elements.rbegin(); it != elements.rend(); ++it) {
 		(*it).element->Draw();
 	}
+
+	font->ResetTransformMatrix();
+	smallFont->ResetTransformMatrix();
 }
 #endif
 

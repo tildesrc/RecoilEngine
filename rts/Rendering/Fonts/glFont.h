@@ -8,6 +8,7 @@
 
 #include "TextWrap.h"
 #include "ustring.h"
+#include "glFontRenderer.h"
 
 #include "Rendering/GL/RenderBuffers.h"
 #include "System/float4.h"
@@ -57,6 +58,10 @@ public:
 
 	void Begin(bool userDefinedBlending = false);
 	void End();
+
+	// see CglFontRenderer::SetTransformMatrix
+	void SetTransformMatrix(const CMatrix44f& m) { fontRenderer->SetTransformMatrix(m); }
+	void ResetTransformMatrix() { fontRenderer->ResetTransformMatrix(); }
 
 	void DrawBuffered(bool userDefinedBlending = false);
 
