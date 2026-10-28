@@ -185,6 +185,20 @@ namespace Shader {
 		ExtractGlslVersion(&sourceStr, &versionStr);
 		ExtractGlslVersion(&defFlags,  &versionStr);
 
+		// A core profile rejects GLSL versions below 1.40 outright ("version '130'
+		// is not supported"), so a shader written in modern syntax but still
+		// declaring 130 cannot compile there at all. Raise those to 150, which
+		// every core profile supports (core profiles start at GL 3.2). Shaders
+		// that genuinely rely on removed builtins will now fail on those instead
+		// of on the version line, which is the more useful error anyway.
+		// Compatibility contexts keep whatever the shader asked for.
+		if (globalRenderingInfo.glContextIsCore && !versionStr.empty()) {
+			int verNum = 0;
+
+			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0 && verNum < 140)
+				versionStr = "#version 150";
+		}
+
 		if (!versionStr.empty()) EnsureEndsWith(&versionStr, "\n");
 		if (!defFlags.empty())   EnsureEndsWith(&defFlags,   "\n");
 

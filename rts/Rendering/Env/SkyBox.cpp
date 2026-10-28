@@ -160,7 +160,7 @@ void CSkyBox::Init(uint32_t textureID, uint32_t xsize, uint32_t ysize, bool conv
 
 			if (generateMipMaps) {
 				glBindTexture(GL_TEXTURE_CUBE_MAP, cubeTexID);
-				glGenerateMipmapEXT(GL_TEXTURE_CUBE_MAP);
+				glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 				glBindTexture(GL_TEXTURE_CUBE_MAP,         0);
 			}
 		}

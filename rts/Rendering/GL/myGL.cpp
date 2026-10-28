@@ -465,11 +465,11 @@ bool glSpringBlitImages(
 
 	GLuint newDrawFBO;
 	GLuint newReadFBO;
-	glGenFramebuffersEXT(1, &newDrawFBO);
-	glGenFramebuffersEXT(1, &newReadFBO);
+	glGenFramebuffers(1, &newDrawFBO);
+	glGenFramebuffers(1, &newReadFBO);
 
-	glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, newDrawFBO);
-	glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, newReadFBO);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER_EXT, newDrawFBO);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER_EXT, newReadFBO);
 
 	const GLenum blitfilter = (srcWidth == dstTexParams.sizeX && srcHeight == dstTexParams.sizeY) ? GL_NEAREST : GL_LINEAR;
 	for (int z = 0; result && z < srcDepth; z++) {
@@ -478,17 +478,17 @@ bool glSpringBlitImages(
 			switch (srcTarget)
 			{
 			case GL_TEXTURE_1D:
-				glFramebufferTexture1DEXT(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel);
+				glFramebufferTexture1D(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel);
 				break;
 			case GL_TEXTURE_2D:
-				glFramebufferTexture2DEXT(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel);
+				glFramebufferTexture2D(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel);
 				break;
 			case GL_TEXTURE_3D:
-				glFramebufferTexture3DEXT(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel, srcZ + z);
+				glFramebufferTexture3D(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcTarget, srcName, srcLevel, srcZ + z);
 				break;
 			case GL_TEXTURE_1D_ARRAY: [[fallthrough]];
 			case GL_TEXTURE_2D_ARRAY:
-				glFramebufferTextureLayerEXT(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcName, srcLevel, srcZ + z);
+				glFramebufferTextureLayer(GL_READ_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, srcName, srcLevel, srcZ + z);
 				break;
 			default:
 				result = false;
@@ -506,17 +506,17 @@ bool glSpringBlitImages(
 			switch (dstTarget)
 			{
 			case GL_TEXTURE_1D:
-				glFramebufferTexture1DEXT(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel);
+				glFramebufferTexture1D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel);
 				break;
 			case GL_TEXTURE_2D:
-				glFramebufferTexture2DEXT(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel);
+				glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel);
 				break;
 			case GL_TEXTURE_3D:
-				glFramebufferTexture3DEXT(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel, dstZ + z);
+				glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstTarget, dstName, dstLevel, dstZ + z);
 				break;
 			case GL_TEXTURE_1D_ARRAY: [[fallthrough]];
 			case GL_TEXTURE_2D_ARRAY:
-				glFramebufferTextureLayerEXT(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstName, dstLevel, dstZ + z);
+				glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dstName, dstLevel, dstZ + z);
 				break;
 
 			default:
@@ -530,17 +530,17 @@ bool glSpringBlitImages(
 		}
 
 		if (result) {
-			glBlitFramebufferEXT(srcX, srcY, srcX + srcWidth, srcY + srcHeight, dstX, dstY, dstX + srcWidth, dstY + srcHeight, GL_COLOR_BUFFER_BIT, blitfilter);
+			glBlitFramebuffer(srcX, srcY, srcX + srcWidth, srcY + srcHeight, dstX, dstY, dstX + srcWidth, dstY + srcHeight, GL_COLOR_BUFFER_BIT, blitfilter);
 		}
 	}
 
 	if (currDrawFBO)
-		glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, currDrawFBO);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER_EXT, currDrawFBO);
 	if (currReadFBO)
-		glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, currReadFBO);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER_EXT, currReadFBO);
 
-	glDeleteFramebuffersEXT(1, &newDrawFBO);
-	glDeleteFramebuffersEXT(1, &newReadFBO);
+	glDeleteFramebuffers(1, &newDrawFBO);
+	glDeleteFramebuffers(1, &newReadFBO);
 
 	return result;
 }

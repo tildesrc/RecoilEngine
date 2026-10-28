@@ -59,14 +59,14 @@ void CRefractWater::Draw()
 	if (!waterRendering->forceRendering && !readMap->HasVisibleWater())
 		return;
 
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(target, subSurfaceTex);
 	glEnable(target);
 	glCopyTexSubImage2D(target, 0, 0, 0, globalRendering->viewPosX, globalRendering->viewPosY, globalRendering->viewSizeX, globalRendering->viewSizeY);
 
 	SetupWaterDepthTex();
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	// GL_TEXTURE_RECTANGLE uses texcoord range 0 to width, whereas GL_TEXTURE_2D uses 0 to 1
 	if (target == GL_TEXTURE_RECTANGLE_ARB) {
@@ -81,20 +81,20 @@ void CRefractWater::Draw()
 	}
 	CAdvWater::Draw(false);
 
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glDisable(GL_TEXTURE_2D);
 	glDisable(GL_TEXTURE_GEN_S);
 	glDisable(GL_TEXTURE_GEN_T);
 
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glDisable(target);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 }
 
 void CRefractWater::SetupWaterDepthTex()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, readMap->GetShadingTexture()); // the shading texture has water depth encoded in alpha
 	glEnable(GL_TEXTURE_GEN_S);

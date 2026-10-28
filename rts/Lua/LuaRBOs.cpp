@@ -19,7 +19,7 @@
 LuaRBOs::~LuaRBOs()
 {
 	for (const RBO* rbo: rbos) {
-		glDeleteRenderbuffersEXT(1, &rbo->id);
+		glDeleteRenderbuffers(1, &rbo->id);
 	}
 }
 
@@ -80,7 +80,7 @@ void LuaRBOs::RBO::Free(lua_State* L)
 	if (id == 0)
 		return;
 
-	glDeleteRenderbuffersEXT(1, &id);
+	glDeleteRenderbuffers(1, &id);
 	id = 0;
 
 	{
@@ -114,7 +114,7 @@ int LuaRBOs::meta_index(lua_State* L)
 	const RBO* rbo = static_cast<RBO*>(luaL_checkudata(L, 1, "RBO"));
 
 	switch (hashString(luaL_checkstring(L, 2))) {
-		case hashString(  "valid"): { lua_pushboolean(L, glIsRenderbufferEXT(rbo->id)); return 1; } break;
+		case hashString(  "valid"): { lua_pushboolean(L, glIsRenderbuffer(rbo->id)); return 1; } break;
 		case hashString( "target"): { lua_pushnumber(L, rbo->target );                  return 1; } break;
 		case hashString( "format"): { lua_pushnumber(L, rbo->format );                  return 1; } break;
 		case hashString(  "xsize"): { lua_pushnumber(L, rbo->xsize  );                  return 1; } break;
@@ -200,18 +200,18 @@ int LuaRBOs::CreateRBO(lua_State* L)
 		}
 	}
 
-	glGenRenderbuffersEXT(1, &rbo.id);
-	glBindRenderbufferEXT(rbo.target, rbo.id);
+	glGenRenderbuffers(1, &rbo.id);
+	glBindRenderbuffer(rbo.target, rbo.id);
 
 	// allocate the memory
 	// in theory glRenderbufferStorageMultisample(...,samples = 0,...) is equivalent
 	// to glRenderbufferStorage, so these two calls could be replaced with one later
 	if (rbo.samples > 1)
-		glRenderbufferStorageMultisampleEXT(rbo.target, rbo.samples, rbo.format, rbo.xsize, rbo.ysize);
+		glRenderbufferStorageMultisample(rbo.target, rbo.samples, rbo.format, rbo.xsize, rbo.ysize);
 	else
-		glRenderbufferStorageEXT(rbo.target, rbo.format, rbo.xsize, rbo.ysize);
+		glRenderbufferStorage(rbo.target, rbo.format, rbo.xsize, rbo.ysize);
 
-	glBindRenderbufferEXT(rbo.target, 0);
+	glBindRenderbuffer(rbo.target, 0);
 
 	RBO* rboPtr = static_cast<RBO*>(lua_newuserdata(L, sizeof(RBO)));
 	*rboPtr = rbo;

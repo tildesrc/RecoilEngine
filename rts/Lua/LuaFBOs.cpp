@@ -31,7 +31,7 @@ LuaFBOs::~LuaFBOs()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	for (const auto* fbo: fbos) {
-		glDeleteFramebuffersEXT(1, &fbo->id);
+		glDeleteFramebuffers(1, &fbo->id);
 	}
 }
 
@@ -187,7 +187,7 @@ void LuaFBOs::LuaFBO::Free(lua_State* L)
 	luaL_unref(L, LUA_REGISTRYINDEX, luaRef);
 	luaRef = LUA_NOREF;
 
-	glDeleteFramebuffersEXT(1, &id);
+	glDeleteFramebuffers(1, &id);
 	id = 0;
 
 	{
@@ -248,26 +248,26 @@ int LuaFBOs::meta_newindex(lua_State* L)
 		if (type != 0) {
 			GLint currentFBO;
 			glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
-			glBindFramebufferEXT(fbo->target, fbo->id);
+			glBindFramebuffer(fbo->target, fbo->id);
 			ApplyAttachment(L, 3, fbo, type);
-			glBindFramebufferEXT(fbo->target, currentFBO);
+			glBindFramebuffer(fbo->target, currentFBO);
 		}
 		else if (key == "drawbuffers") {
 			GLint currentFBO;
 			glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
-			glBindFramebufferEXT(fbo->target, fbo->id);
+			glBindFramebuffer(fbo->target, fbo->id);
 			ApplyDrawBuffers(L, 3);
-			glBindFramebufferEXT(fbo->target, currentFBO);
+			glBindFramebuffer(fbo->target, currentFBO);
 		}
 		else if (key == "readbuffer") {
 			GLint currentFBO;
 			glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
-			glBindFramebufferEXT(fbo->target, fbo->id);
+			glBindFramebuffer(fbo->target, fbo->id);
 
 			if (lua_isnumber(L, 3))
 				glReadBuffer((GLenum)lua_toint(L, 3));
 
-			glBindFramebufferEXT(fbo->target, currentFBO);
+			glBindFramebuffer(fbo->target, currentFBO);
 		}
 		else if (key == "target") {
 			return 0;// fbo->target = (GLenum)luaL_checkint(L, 3);
@@ -299,8 +299,8 @@ bool LuaFBOs::AttachObject(
 	RECOIL_DETAILED_TRACY_ZONE;
 	if (lua_isnil(L, index)) {
 		// nil object
-		glFramebufferTexture2DEXT(fbo->target, attachID, GL_TEXTURE_2D, 0, 0);
-		glFramebufferRenderbufferEXT(fbo->target, attachID, GL_RENDERBUFFER_EXT, 0);
+		glFramebufferTexture2D(fbo->target, attachID, GL_TEXTURE_2D, 0, 0);
+		glFramebufferRenderbuffer(fbo->target, attachID, GL_RENDERBUFFER_EXT, 0);
 		return true;
 	}
 	if (lua_israwstring(L, index)) {
@@ -337,7 +337,7 @@ bool LuaFBOs::AttachObject(
 	if (attachTarget == 0)
 		attachTarget = rbo->target;
 
-	glFramebufferRenderbufferEXT(fbo->target, attachID, attachTarget, rbo->id);
+	glFramebufferRenderbuffer(fbo->target, attachID, attachTarget, rbo->id);
 
 	fbo->xsize = rbo->xsize;
 	fbo->ysize = rbo->ysize;
@@ -348,17 +348,17 @@ bool LuaFBOs::AttachObject(
 void LuaFBOs::AttachObjectTexTarget(const char* funcName, GLenum fboTarget, GLenum texTarget, GLuint texId, GLenum attachID, GLenum attachLevel)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	//  glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, tex.target, texID, 0);
+	//  glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, tex.target, texID, 0);
 	switch (texTarget)
 	{
 	case GL_TEXTURE_1D:
-		glFramebufferTexture1DEXT(fboTarget, attachID, texTarget, texId, attachLevel);
+		glFramebufferTexture1D(fboTarget, attachID, texTarget, texId, attachLevel);
 		break;
 	case GL_TEXTURE_2D:
-		glFramebufferTexture2DEXT(fboTarget, attachID, texTarget, texId, attachLevel);
+		glFramebufferTexture2D(fboTarget, attachID, texTarget, texId, attachLevel);
 		break;
 	case GL_TEXTURE_2D_MULTISAMPLE:
-		glFramebufferTexture2DEXT(fboTarget, attachID, texTarget, texId, 0);
+		glFramebufferTexture2D(fboTarget, attachID, texTarget, texId, 0);
 		break;
 	case GL_TEXTURE_2D_ARRAY: [[fallthrough]];
 	case GL_TEXTURE_CUBE_MAP: [[fallthrough]];
@@ -499,8 +499,8 @@ int LuaFBOs::CreateFBO(lua_State* L)
 	GLint currentFBO;
 	glGetIntegerv(bindTarget, &currentFBO);
 
-	glGenFramebuffersEXT(1, &fbo.id);
-	glBindFramebufferEXT(fbo.target, fbo.id);
+	glGenFramebuffers(1, &fbo.id);
+	glBindFramebuffer(fbo.target, fbo.id);
 
 
 	auto* fboPtr = static_cast<LuaFBO*>(lua_newuserdata(L, sizeof(LuaFBO)));
@@ -526,7 +526,7 @@ int LuaFBOs::CreateFBO(lua_State* L)
 	}
 
 	// revert to the old fbo
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 
 	if (fboPtr->luaRef != LUA_NOREF) {
 		LuaFBOs& activeFBOs = CLuaHandle::GetActiveFBOs(L);
@@ -590,9 +590,9 @@ int LuaFBOs::IsValidFBO(lua_State* L)
 	GLint currentFBO;
 	glGetIntegerv(bindTarget, &currentFBO);
 
-	glBindFramebufferEXT(target, fbo->id);
+	glBindFramebuffer(target, fbo->id);
 	const GLenum status = glCheckFramebufferStatus(target);
-	glBindFramebufferEXT(target, currentFBO);
+	glBindFramebuffer(target, currentFBO);
 
 	lua_pushboolean(L, (status == GL_FRAMEBUFFER_COMPLETE_EXT));
 	lua_pushnumber(L, status);
@@ -655,11 +655,11 @@ int LuaFBOs::ActiveFBO(lua_State* L)
 
 	GLint currentFBO = 0;
 	glGetIntegerv(bindTarget, &currentFBO);
-	glBindFramebufferEXT(target, fbo->id);
+	glBindFramebuffer(target, fbo->id);
 
 	const int error = lua_pcall(L, (lua_gettop(L) - funcIndex), 0, 0);
 
-	glBindFramebufferEXT(target, currentFBO);
+	glBindFramebuffer(target, currentFBO);
 	if (identities) {
 		glMatrixMode(GL_PROJECTION); glPopMatrix();
 		glMatrixMode(GL_MODELVIEW);  glPopMatrix();
@@ -697,7 +697,7 @@ int LuaFBOs::RawBindFBO(lua_State* L)
 
 	if (lua_isnil(L, 1)) {
 		// revert to default or specified FB
-		glBindFramebufferEXT((GLenum) luaL_optinteger(L, 2, GL_FRAMEBUFFER_EXT), luaL_optinteger(L, 3, 0));
+		glBindFramebuffer((GLenum) luaL_optinteger(L, 2, GL_FRAMEBUFFER_EXT), luaL_optinteger(L, 3, 0));
 		return 0;
 	}
 		
@@ -708,7 +708,7 @@ int LuaFBOs::RawBindFBO(lua_State* L)
 
 	GLint currentFBO = 0;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
-	glBindFramebufferEXT((GLenum) luaL_optinteger(L, 2, fbo->target), fbo->id);
+	glBindFramebuffer((GLenum) luaL_optinteger(L, 2, fbo->target), fbo->id);
 
 	lua_pushnumber(L, currentFBO);
 	return 1;
@@ -764,7 +764,7 @@ int LuaFBOs::BlitFBO(lua_State* L)
 		const GLbitfield mask = (GLbitfield)luaL_optint(L, 9, GL_COLOR_BUFFER_BIT);
 		const GLenum filter = (GLenum)luaL_optint(L, 10, GL_NEAREST);
 
-		glBlitFramebufferEXT(x0Src, y0Src, x1Src, y1Src,  x0Dst, y0Dst, x1Dst, y1Dst,  mask, filter);
+		glBlitFramebuffer(x0Src, y0Src, x1Src, y1Src,  x0Dst, y0Dst, x1Dst, y1Dst,  mask, filter);
 		return 0;
 	}
 
@@ -794,12 +794,12 @@ int LuaFBOs::BlitFBO(lua_State* L)
 	GLint currentFBO;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
 
-	glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, (fboSrc == nullptr)? 0: fboSrc->id);
-	glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, (fboDst == nullptr)? 0: fboDst->id);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER_EXT, (fboSrc == nullptr)? 0: fboSrc->id);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER_EXT, (fboDst == nullptr)? 0: fboDst->id);
 
-	glBlitFramebufferEXT(x0Src, y0Src, x1Src, y1Src,  x0Dst, y0Dst, x1Dst, y1Dst,  mask, filter);
+	glBlitFramebuffer(x0Src, y0Src, x1Src, y1Src,  x0Dst, y0Dst, x1Dst, y1Dst,  mask, filter);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 	return 0;
 }
 

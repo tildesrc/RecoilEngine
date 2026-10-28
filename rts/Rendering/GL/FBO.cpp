@@ -359,12 +359,11 @@ bool FBO::Blit(int32_t fromID, int32_t toID, const std::array<int, 4>& srcRect, 
 	glBindFramebuffer(GL_READ_FRAMEBUFFER_EXT, fromID);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER_EXT,   toID);
 
-	int samples; int sampleBuffers;
-	glGetFramebufferParameteriv(GL_READ_FRAMEBUFFER_EXT, GL_SAMPLES, &samples);
-	glGetFramebufferParameteriv(GL_READ_FRAMEBUFFER_EXT, GL_SAMPLE_BUFFERS, &sampleBuffers);
-
-	glGetFramebufferParameteriv(GL_DRAW_FRAMEBUFFER_EXT, GL_SAMPLES, &samples);
-	glGetFramebufferParameteriv(GL_DRAW_FRAMEBUFFER_EXT, GL_SAMPLE_BUFFERS, &sampleBuffers);
+	// NOTE: four glGetFramebufferParameteriv() queries used to sit here. Their
+	// results were never read, and that entry point is GL 4.3
+	// (ARB_framebuffer_no_attachments) - far newer than the blit this function
+	// performs - so on any context below 4.3 the pointer is null and the dead
+	// query crashed the draw loop outright.
 
 	glBlitFramebuffer(srcRect[0], srcRect[1], srcRect[2], srcRect[3], dstRect[0], dstRect[1], dstRect[2], dstRect[3], mask, filter);
 

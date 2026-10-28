@@ -114,15 +114,15 @@ std::string LuaTextures::Create(const Texture& tex)
 		GLint currentFBO;
 		glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
 
-		glGenFramebuffersEXT(1, &fbo);
-		glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fbo);
+		glGenFramebuffers(1, &fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER_EXT, fbo);
 
 		if (tex.fboDepth != 0) {
-			glGenRenderbuffersEXT(1, &fboDepth);
-			glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, fboDepth);
+			glGenRenderbuffers(1, &fboDepth);
+			glBindRenderbuffer(GL_RENDERBUFFER_EXT, fboDepth);
 			GLenum depthFormat = static_cast<GLenum>(CGlobalRendering::DepthBitsToFormat(globalRendering->supportDepthBufferBitDepth));
-			glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, depthFormat, tex.xsize, tex.ysize);
-			glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, fboDepth);
+			glRenderbufferStorage(GL_RENDERBUFFER_EXT, depthFormat, tex.xsize, tex.ysize);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, fboDepth);
 		}
 
 		bool attachFailure = false;
@@ -136,13 +136,13 @@ std::string LuaTextures::Create(const Texture& tex)
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT) != GL_FRAMEBUFFER_COMPLETE_EXT || attachFailure) {
 			glDeleteTextures(1, &texID);
-			glDeleteFramebuffersEXT(1, &fbo);
-			glDeleteRenderbuffersEXT(1, &fboDepth);
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+			glDeleteFramebuffers(1, &fbo);
+			glDeleteRenderbuffers(1, &fboDepth);
+			glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 			return "";
 		}
 
-		glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+		glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 	}
 
 	std::string str = fmt::format("{}{}", prefix, ++lastCode);
@@ -189,8 +189,8 @@ bool LuaTextures::Free(const std::string& name)
 		glDeleteTextures(1, &tex.id);
 
 		if (FBO::IsSupported()) {
-			glDeleteFramebuffersEXT(1, &tex.fbo);
-			glDeleteRenderbuffersEXT(1, &tex.fboDepth);
+			glDeleteFramebuffers(1, &tex.fbo);
+			glDeleteRenderbuffers(1, &tex.fboDepth);
 		}
 
 		freeIndices.push_back(it->second);
@@ -214,8 +214,8 @@ bool LuaTextures::FreeFBO(const std::string& name)
 
 	Texture& tex = textureVec[it->second];
 
-	glDeleteFramebuffersEXT(1, &tex.fbo);
-	glDeleteRenderbuffersEXT(1, &tex.fboDepth);
+	glDeleteFramebuffers(1, &tex.fbo);
+	glDeleteRenderbuffers(1, &tex.fboDepth);
 
 	tex.fbo = 0;
 	tex.fboDepth = 0;
@@ -230,8 +230,8 @@ void LuaTextures::FreeAll()
 		glDeleteTextures(1, &tex.id);
 
 		if (FBO::IsSupported()) {
-			glDeleteFramebuffersEXT(1, &tex.fbo);
-			glDeleteRenderbuffersEXT(1, &tex.fboDepth);
+			glDeleteFramebuffers(1, &tex.fbo);
+			glDeleteRenderbuffers(1, &tex.fboDepth);
 		}
 	}
 

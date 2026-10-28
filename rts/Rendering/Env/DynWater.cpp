@@ -75,7 +75,7 @@ void CDynWater::InitResources(bool loadShader)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 256, 256, 0, GL_RGBA, GL_FLOAT, 0);
-	glGenerateMipmapEXT(GL_TEXTURE_2D);
+	glGenerateMipmap(GL_TEXTURE_2D);
 
 	float* temp = new float[1024 * 1024 * 4];
 
@@ -236,7 +236,7 @@ void CDynWater::InitResources(bool loadShader)
 	delete[] temp;
 	temp = nullptr;
 
-	glGenFramebuffersEXT(1, &frameBuffer);
+	glGenFramebuffers(1, &frameBuffer);
 
 	GLenum depthFormat = static_cast<GLenum>(CGlobalRendering::DepthBitsToFormat(globalRendering->supportDepthBufferBitDepth));
 
@@ -292,7 +292,7 @@ void CDynWater::FreeResources()
 	DeleteProgram(dwAddSplashFP);
 
 	if (frameBuffer) {
-		glDeleteFramebuffersEXT(1, &frameBuffer);
+		glDeleteFramebuffers(1, &frameBuffer);
 		frameBuffer = 0;
 	}
 }
@@ -308,25 +308,25 @@ void CDynWater::Draw()
 	glDisable(GL_ALPHA_TEST);
 	glEnable(GL_FOG);
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, reflectTexture);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveHeight32);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, refractTexture);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, readMap->GetShadingTexture());
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, foamTex);
-	glActiveTextureARB(GL_TEXTURE6_ARB);
+	glActiveTexture(GL_TEXTURE6_ARB);
 	glBindTexture(GL_TEXTURE_2D, detailNormalTex);
 
 	shadowHandler.SetupShadowTexSampler(GL_TEXTURE7);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	glColor4f(1, 1, 1, 0.5f);
 
@@ -378,21 +378,21 @@ void CDynWater::Draw()
 	glPopAttrib();
 /*
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE6_ARB);
+	glActiveTexture(GL_TEXTURE6_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE7_ARB);
+	glActiveTexture(GL_TEXTURE7_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	*/
 }
 
@@ -535,23 +535,23 @@ void CDynWater::DrawWaves()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	/*glActiveTextureARB(GL_TEXTURE0_ARB);
+	/*glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE0_ARB);*/
+	glActiveTexture(GL_TEXTURE0_ARB);*/
 
 
 	float start = 0.1f / 1024;
@@ -568,33 +568,33 @@ void CDynWater::DrawWaves()
 
 	//////////////////////////////////////
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex3, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex3, 0);
 
 	glViewport(0, 0, 1024, 1024);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOG_L(L_WARNING, "[DynWater::%s][1] FBO not ready", __func__);
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex2);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
-	glActiveTextureARB(GL_TEXTURE6_ARB);
+	glActiveTexture(GL_TEXTURE6_ARB);
 	glBindTexture(GL_TEXTURE_2D, readMap->GetShadingTexture ());
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, waveFP2);
 	glEnable(GL_FRAGMENT_PROGRAM_ARB);
@@ -605,34 +605,34 @@ void CDynWater::DrawWaves()
 	int resetTexs[] = { 0, 1, 2, 3, 4, 5, -1 };
 	DrawUpdateSquare(dx, dy, resetTexs);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 	glFlush();
 
 
 	///////////////////////////////////////
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex2, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex2, 0);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOG_L(L_WARNING, "[DynWater::%s][2] FBO not ready", __func__);
 
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex3);
-	glActiveTextureARB(GL_TEXTURE6_ARB);
+	glActiveTexture(GL_TEXTURE6_ARB);
 	glBindTexture(GL_TEXTURE_2D, detailNormalTex);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, waveFP);
 	glBindProgramARB(GL_VERTEX_PROGRAM_ARB, waveVP);
@@ -641,32 +641,32 @@ void CDynWater::DrawWaves()
 	int resetTexs2[] = {0, -1};
 	DrawUpdateSquare(dx, dy, resetTexs2);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 
 	glFlush();
 
 	////////////////////////////////
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex2);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex2);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex2);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex2);
-	glActiveTextureARB(GL_TEXTURE4_ARB);
+	glActiveTexture(GL_TEXTURE4_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE5_ARB);
+	glActiveTexture(GL_TEXTURE5_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE6_ARB);
+	glActiveTexture(GL_TEXTURE6_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		LOG_L(L_WARNING, "[DynWater::%s][3] FBO not ready", __func__);
@@ -685,22 +685,22 @@ void CDynWater::DrawWaves()
 	glTexCoord2f(end,   start); glVertexf3( RgtVector);
 	glEnd();
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 
 	glFlush();
 
 	glDisable(GL_VERTEX_PROGRAM_ARB);
 	glDisable(GL_FRAGMENT_PROGRAM_ARB);
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE1_ARB);
+	glActiveTexture(GL_TEXTURE1_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE2_ARB);
+	glActiveTexture(GL_TEXTURE2_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE3_ARB);
+	glActiveTexture(GL_TEXTURE3_ARB);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	unsigned int temp = waveTex1;
 	waveTex1 = waveTex2;
@@ -717,13 +717,13 @@ void CDynWater::DrawHeightTex()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, waveTex1);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveHeight32, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveHeight32, 0);
 
 	glViewport(0, 0, 256, 256);
 
@@ -758,7 +758,7 @@ void CDynWater::DrawHeightTex()
 
 	glDisable(GL_FRAGMENT_PROGRAM_ARB);
 	glDisable(GL_VERTEX_PROGRAM_ARB);
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 
 	glFlush();
 }
@@ -959,13 +959,13 @@ void CDynWater::DrawDetailNormalTex()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	for (int a = 0; a < 8; ++a) {
-		glActiveTextureARB(GL_TEXTURE0_ARB + a);
+		glActiveTexture(GL_TEXTURE0_ARB + a);
 		glBindTexture(GL_TEXTURE_2D, rawBumpTexture[0]);
 	}
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, detailNormalTex, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, detailNormalTex, 0);
 
 	glViewport(0, 0, 256, 256);
 
@@ -1007,7 +1007,7 @@ void CDynWater::DrawDetailNormalTex()
 	glEnd();
 
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 
 	glDisable(GL_FRAGMENT_PROGRAM_ARB);
 	glDisable(GL_VERTEX_PROGRAM_ARB);
@@ -1015,15 +1015,15 @@ void CDynWater::DrawDetailNormalTex()
 	glFlush();
 
 	glBindTexture(GL_TEXTURE_2D,detailNormalTex);
-	glGenerateMipmapEXT(GL_TEXTURE_2D);
+	glGenerateMipmap(GL_TEXTURE_2D);
 
 }
 
 void CDynWater::AddShipWakes()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
 
 	glViewport(0, 0, 1024, 1024);
 	glEnable(GL_BLEND);
@@ -1117,17 +1117,17 @@ void CDynWater::AddShipWakes()
 		}
 	}
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, boatShape);
 
 	va->DrawArrayTN(GL_QUADS);
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, hoverShape);
 
 	va2->DrawArrayTN(GL_QUADS);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 	glDisable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1144,8 +1144,8 @@ void CDynWater::AddExplosions()
 		return;
 	}
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, frameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, frameBuffer);
+	glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, waveTex1, 0);
 
 	glViewport(0, 0, 1024, 1024);
 	glEnable(GL_BLEND);
@@ -1157,7 +1157,7 @@ void CDynWater::AddExplosions()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 	glBindTexture(GL_TEXTURE_2D, splashTex);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT) != GL_FRAMEBUFFER_COMPLETE_EXT)
@@ -1211,7 +1211,7 @@ void CDynWater::AddExplosions()
 
 	va->DrawArrayTN(GL_QUADS);
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
 	glDisable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -1243,11 +1243,11 @@ void CDynWater::DrawUpdateSquare(float dx, float dy, int* resetTexs)
 
 	int a = 0;
 	while (resetTexs[a] >= 0) {
-		glActiveTextureARB(GL_TEXTURE0_ARB + resetTexs[a]);
+		glActiveTexture(GL_TEXTURE0_ARB + resetTexs[a]);
 		glBindTexture(GL_TEXTURE_2D, zeroTex);
 		++a;
 	}
-	glActiveTextureARB(GL_TEXTURE0_ARB);
+	glActiveTexture(GL_TEXTURE0_ARB);
 
 	if (startx > 0) {
 		DrawSingleUpdateSquare(0, 0, startx, 1);

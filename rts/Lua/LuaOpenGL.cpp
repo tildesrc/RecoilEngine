@@ -360,7 +360,7 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 		REGISTER_LUA_CFUNC(DeleteTextureFBO);
 		REGISTER_LUA_CFUNC(RenderToTexture);
 	}
-	if (IS_GL_FUNCTION_AVAILABLE(glGenerateMipmapEXT))
+	if (IS_GL_FUNCTION_AVAILABLE(glGenerateMipmap))
 		REGISTER_LUA_CFUNC(GenerateMipmap);
 
 	REGISTER_LUA_CFUNC(ActiveTexture);
@@ -4642,7 +4642,7 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 		glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
 	}
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, tex->fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, tex->fbo);
 
 	glPushAttrib(GL_VIEWPORT_BIT);
 	glViewport(0, 0, tex->xsize, tex->ysize);
@@ -4655,7 +4655,7 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 	glMatrixMode(GL_MODELVIEW);  glPopMatrix();
 	glPopAttrib();
 
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 
 	if (error != 0) {
 		LOG_L(L_ERROR, "gl.RenderToTexture: error(%i) = %s",
@@ -4686,7 +4686,7 @@ int LuaOpenGL::GenerateMipmap(lua_State* L)
 		return 0;
 
 	auto texBind = GL::TexBind(tex->target, tex->id);
-	glGenerateMipmapEXT(tex->target);
+	glGenerateMipmap(tex->target);
 
 	return 0;
 }

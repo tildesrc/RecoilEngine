@@ -836,14 +836,14 @@ bool CDDSImage::upload_texture1D() const
 
     if (is_compressed())
     {
-        glCompressedTexImage1DARB(GL_TEXTURE_1D, 0, m_format,
+        glCompressedTexImage1D(GL_TEXTURE_1D, 0, m_format,
             baseImage.get_width(), 0, baseImage.get_size(), baseImage);
 
         // load all mipmaps
         for (unsigned int i = 0; i < baseImage.get_num_mipmaps(); i++)
         {
             const CSurface &mipmap = baseImage.get_mipmap(i);
-            glCompressedTexImage1DARB(GL_TEXTURE_1D, i+1, m_format,
+            glCompressedTexImage1D(GL_TEXTURE_1D, i+1, m_format,
                 mipmap.get_width(), 0, mipmap.get_size(), mipmap);
         }
     }
