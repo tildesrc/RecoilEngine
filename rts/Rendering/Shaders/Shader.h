@@ -422,6 +422,20 @@ namespace Shader {
 	struct GLSLProgramObject: public Shader::IProgramObject {
 	public:
 		GLSLProgramObject(const std::string& poName);
+
+		// resolved lazily on first use, -1 meaning "program does not use it"
+		struct CompatUniformLocs {
+			bool resolved = false;
+			int modelView = -1;
+			int proj = -1;
+			int modelViewProj = -1;
+			int modelViewInv = -1;
+			int projInv = -1;
+			int modelViewProjInv = -1;
+			int normalMat = -1;
+		};
+		CompatUniformLocs compatLocs;
+
 		~GLSLProgramObject() override { Release(); }
 
 		void BindAttribLocation(const std::string& name, uint32_t index) override;
@@ -438,6 +452,11 @@ namespace Shader {
 
 	public:
 		void SetUniformLocation(const std::string&) override;
+
+		// Uploads the values behind the core-profile compatibility prelude's
+		// aliases (see GetGlslCompatPrelude). No-op outside a core profile and
+		// for programs that reference none of them.
+		void SetCompatUniforms();
 
 		void SetUniform1i(int idx, int   v0) override;
 		void SetUniform2i(int idx, int   v0, int   v1) override;

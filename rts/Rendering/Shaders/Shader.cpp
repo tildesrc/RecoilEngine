@@ -7,6 +7,8 @@
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GlobalRendering.h"
 #include "Rendering/GlobalRenderingInfo.h"
+#include "Game/Camera.h"
+#include "Game/CameraHandler.h"
 
 #include "System/SafeUtil.h"
 #include "System/StringUtil.h"
@@ -24,6 +26,133 @@
 #include "System/Misc/TracyDefs.h"
 
 
+
+// #extension has to precede any non-preprocessor token, so it must be lifted out
+// of the body and re-emitted ahead of anything the compat prelude declares.
+static void ExtractGlslExtensions(std::string* src, std::string* extensions)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	for (size_t pos = src->find("#extension "); pos != std::string::npos; pos = src->find("#extension ", pos)) {
+		// only hoist directives that start their line, not ones inside a comment
+		// or a string further along
+		if (pos > 0 && (*src)[pos - 1] != '\n') {
+			pos += 1;
+			continue;
+		}
+
+		const auto eol = std::min(src->find('\n', pos) + 1, src->size());
+
+		*extensions += src->substr(pos, eol - pos);
+		src->erase(pos, eol - pos);
+	}
+}
+
+// Aliases the fixed-function builtins a core profile removed onto uniforms and
+// attributes the engine supplies. gl_* names are reserved and cannot be
+// redeclared, but a #define is substituted before that check, so the aliases go
+// through where a declaration would not.
+//
+// This is what lets game-supplied shaders keep working: they cannot be rewritten
+// by the engine, and they funnel through here like everything else.
+static std::string GetGlslCompatPrelude(unsigned int type, const std::string& src)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	if (!globalRenderingInfo.glContextIsCore)
+		return "";
+
+	std::string p =
+		"// ---- core-profile compatibility prelude ----\n"
+		"uniform mat4 spring_ModelViewMatrix;\n"
+		"uniform mat4 spring_ProjectionMatrix;\n"
+		"uniform mat4 spring_ModelViewProjectionMatrix;\n"
+		"uniform mat4 spring_ModelViewMatrixInverse;\n"
+		"uniform mat4 spring_ProjectionMatrixInverse;\n"
+		"uniform mat3 spring_NormalMatrix;\n"
+		"#define gl_ModelViewMatrix spring_ModelViewMatrix\n"
+		"#define gl_ProjectionMatrix spring_ProjectionMatrix\n"
+		"#define gl_ModelViewProjectionMatrix spring_ModelViewProjectionMatrix\n"
+		"#define gl_ModelViewMatrixInverse spring_ModelViewMatrixInverse\n"
+		"#define gl_ProjectionMatrixInverse spring_ProjectionMatrixInverse\n"
+		"uniform mat4 spring_ModelViewProjectionMatrixInverse;\n"
+		"#define gl_ModelViewProjectionMatrixInverse spring_ModelViewProjectionMatrixInverse\n"
+		"#define gl_NormalMatrix spring_NormalMatrix\n"
+		"#define texture2D texture\n"
+		"#define texture2DProj textureProj\n"
+		"#define texture3D texture\n"
+		"#define textureCube texture\n"
+		"#define shadow2D texture\n"
+		"#define shadow2DProj textureProj\n"
+		// gl_Fog was a fixed-function state struct; mirror its shape so shaders
+		// that read it still compile. Fed from the engine's fog state.
+		"struct spring_FogParameters { vec4 color; float density; float start; float end; float scale; };\n"
+		"uniform spring_FogParameters spring_Fog;\n"
+		"#define gl_Fog spring_Fog\n"
+		// same for gl_LightSource[]; mirrors gl_LightSourceParameters
+		"struct spring_LightSourceParameters {\n"
+		"	vec4 ambient; vec4 diffuse; vec4 specular; vec4 position; vec4 halfVector;\n"
+		"	vec3 spotDirection; float spotExponent; float spotCutoff; float spotCosCutoff;\n"
+		"	float constantAttenuation; float linearAttenuation; float quadraticAttenuation;\n"
+		"};\n"
+		"uniform spring_LightSourceParameters spring_LightSource[8];\n"
+		"#define gl_LightSource spring_LightSource\n";
+
+	switch (type) {
+		case GL_VERTEX_SHADER: {
+			p +=
+				"#define varying out\n"
+				"#define attribute in\n"
+				"in vec4 spring_Vertex;\n"
+				"in vec3 spring_Normal;\n"
+				"in vec4 spring_Color;\n"
+				"in vec4 spring_MultiTexCoord0;\n"
+				"in vec4 spring_MultiTexCoord1;\n"
+				"#define gl_Vertex spring_Vertex\n"
+				"#define gl_Normal spring_Normal\n"
+				"#define gl_Color spring_Color\n"
+				"#define gl_MultiTexCoord0 spring_MultiTexCoord0\n"
+				"#define gl_MultiTexCoord1 spring_MultiTexCoord1\n"
+				"#define ftransform() (spring_ModelViewProjectionMatrix * spring_Vertex)\n"
+				"out vec4 spring_TexCoord[8];\n"
+				"#define gl_TexCoord spring_TexCoord\n"
+				// gl_ClipVertex is gone from core (gl_ClipDistance replaces it).
+				// Alias it to a plain variable so assignments compile; user
+				// clip planes are simply not applied until the call sites that
+				// want them are moved to gl_ClipDistance.
+				"vec4 spring_ClipVertex;\n"
+				"#define gl_ClipVertex spring_ClipVertex\n"
+				"out vec4 spring_FrontColor;\n"
+				"#define gl_FrontColor spring_FrontColor\n"
+				"out float spring_FogFragCoord;\n"
+				"#define gl_FogFragCoord spring_FogFragCoord\n";
+		} break;
+		case GL_FRAGMENT_SHADER: {
+			p +=
+				"#define varying in\n"
+				"in vec4 spring_TexCoord[8];\n"
+				"#define gl_TexCoord spring_TexCoord\n";
+
+			// gl_FragColor and gl_FragData[0] are the same output, and shaders
+			// may reference both from different #ifdef branches, so declare the
+			// array once and alias gl_FragColor onto its first element rather
+			// than emitting two outputs that would both want location 0.
+			p +=
+				"out vec4 spring_FragData[8];\n"
+				"#define gl_FragData spring_FragData\n"
+				"#define gl_FragColor spring_FragData[0]\n";
+
+			p +=
+				"in vec4 spring_FrontColor;\n"
+				"#define gl_Color spring_FrontColor\n"
+				"in float spring_FogFragCoord;\n"
+				"#define gl_FogFragCoord spring_FogFragCoord\n";
+		} break;
+		default: break;
+	}
+
+	return (p + "// ---- end compatibility prelude ----\n");
+}
 
 /*****************************************************************/
 
@@ -195,18 +324,45 @@ namespace Shader {
 		if (globalRenderingInfo.glContextIsCore && !versionStr.empty()) {
 			int verNum = 0;
 
-			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0 && verNum < 140)
-				versionStr = "#version 150";
+			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0) {
+				// Anything below 1.40 is rejected outright, and so is the
+				// "compatibility" profile token whatever version it is attached
+				// to. Re-emitting just the number drops the token and defaults to
+				// core, which is what we are running.
+				if (verNum < 140)
+					verNum = 150;
+
+				versionStr = "#version " + IntToString(verNum);
+			}
 		}
 
-		if (!versionStr.empty()) EnsureEndsWith(&versionStr, "\n");
-		if (!defFlags.empty())   EnsureEndsWith(&defFlags,   "\n");
+		// A core profile requires an explicit #version; shaders that relied on
+		// the default (110) do not compile at all without one.
+		if (globalRenderingInfo.glContextIsCore && versionStr.empty())
+			versionStr = "#version 150";
+
+		// #extension must precede every non-preprocessor token, and the compat
+		// prelude below declares uniforms, so the directives have to be lifted
+		// out of the body and emitted between the version and the prelude.
+		std::string extensionsStr;
+		std::string compatPrelude = GetGlslCompatPrelude(type, sourceStr);
+
+		if (!compatPrelude.empty()) {
+			ExtractGlslExtensions(&sourceStr, &extensionsStr);
+			ExtractGlslExtensions(&defFlags,  &extensionsStr);
+		}
+
+		if (!versionStr.empty())    EnsureEndsWith(&versionStr,    "\n");
+		if (!extensionsStr.empty()) EnsureEndsWith(&extensionsStr, "\n");
+		if (!defFlags.empty())      EnsureEndsWith(&defFlags,      "\n");
 
 		// NOTE: versionStr has to come first with nothing at all ahead of it. The
 		// GLSL spec does allow comments before #version, but Apple's compiler
 		// rejects them ("syntax error: #version"), so do not emit a banner here.
 		std::vector<const GLchar*> sources = {
 			versionStr.c_str(),
+			extensionsStr.c_str(),
+			compatPrelude.c_str(),
 			"// SHADER FLAGS\n",
 			defFlags.c_str(),
 			"// SHADER SOURCE\n",
@@ -500,9 +656,60 @@ namespace Shader {
 		EnableRaw();
 	}
 
+	void GLSLProgramObject::SetCompatUniforms() {
+		RECOIL_DETAILED_TRACY_ZONE;
+
+		if (!globalRenderingInfo.glContextIsCore || objID == 0)
+			return;
+
+		if (!compatLocs.resolved) {
+			compatLocs.resolved = true;
+			compatLocs.modelView        = glGetUniformLocation(objID, "spring_ModelViewMatrix");
+			compatLocs.proj             = glGetUniformLocation(objID, "spring_ProjectionMatrix");
+			compatLocs.modelViewProj    = glGetUniformLocation(objID, "spring_ModelViewProjectionMatrix");
+			compatLocs.modelViewInv     = glGetUniformLocation(objID, "spring_ModelViewMatrixInverse");
+			compatLocs.projInv          = glGetUniformLocation(objID, "spring_ProjectionMatrixInverse");
+			compatLocs.modelViewProjInv = glGetUniformLocation(objID, "spring_ModelViewProjectionMatrixInverse");
+			compatLocs.normalMat        = glGetUniformLocation(objID, "spring_NormalMatrix");
+		}
+
+		// every location is -1 when the shader referenced none of the aliases,
+		// which is the common case once a shader has been modernised
+		if ((compatLocs.modelView | compatLocs.proj | compatLocs.modelViewProj |
+		     compatLocs.modelViewInv | compatLocs.projInv | compatLocs.modelViewProjInv |
+		     compatLocs.normalMat) == -1)
+			return;
+
+		const CCamera* cam = CCameraHandler::GetActiveCamera();
+
+		if (cam == nullptr)
+			return;
+
+		// The fixed-function modelview was view * model, and the engine draws
+		// world geometry in world space with the camera view loaded, so model is
+		// identity here. Call sites that pushed a per-object matrix need to set
+		// these themselves; those are not converted yet.
+		if (compatLocs.modelView        != -1) glUniformMatrix4fv(compatLocs.modelView       , 1, false, cam->GetViewMatrix());
+		if (compatLocs.proj             != -1) glUniformMatrix4fv(compatLocs.proj            , 1, false, cam->GetProjectionMatrix());
+		if (compatLocs.modelViewProj    != -1) glUniformMatrix4fv(compatLocs.modelViewProj   , 1, false, cam->GetViewProjectionMatrix());
+		if (compatLocs.modelViewInv     != -1) glUniformMatrix4fv(compatLocs.modelViewInv    , 1, false, cam->GetViewMatrixInverse());
+		if (compatLocs.projInv          != -1) glUniformMatrix4fv(compatLocs.projInv         , 1, false, cam->GetProjectionMatrixInverse());
+		if (compatLocs.modelViewProjInv != -1) glUniformMatrix4fv(compatLocs.modelViewProjInv, 1, false, cam->GetViewProjectionMatrixInverse());
+
+		if (compatLocs.normalMat != -1) {
+			// the view matrix' upper-left 3x3 is orthonormal, so its
+			// inverse-transpose - the normal matrix - is itself
+			const CMatrix44f& v = cam->GetViewMatrix();
+			const float n[9] = {v[0], v[1], v[2],  v[4], v[5], v[6],  v[8], v[9], v[10]};
+
+			glUniformMatrix3fv(compatLocs.normalMat, 1, false, &n[0]);
+		}
+	}
+
 	void GLSLProgramObject::EnableRaw() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		glUseProgram(objID);
+		SetCompatUniforms();
 		IProgramObject::Enable();
 	}
 	void GLSLProgramObject::DisableRaw() {
