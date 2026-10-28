@@ -82,8 +82,12 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 		"#define texture2DProj textureProj\n"
 		"#define texture3D texture\n"
 		"#define textureCube texture\n"
-		"#define shadow2D texture\n"
-		"#define shadow2DProj textureProj\n"
+		// The legacy shadow lookups returned vec4 with the comparison result in
+		// every channel, while texture()/textureProj() on a sampler2DShadow
+		// return a bare float - so callers doing shadow2DProj(...).r need the
+		// vec4 shape put back, or the swizzle is a compile error.
+		"#define shadow2D(s, c) vec4(texture(s, c))\n"
+		"#define shadow2DProj(s, c) vec4(textureProj(s, c))\n"
 		// gl_Fog was a fixed-function state struct; mirror its shape so shaders
 		// that read it still compile. Fed from the engine's fog state.
 		"struct spring_FogParameters { vec4 color; float density; float start; float end; float scale; };\n"
