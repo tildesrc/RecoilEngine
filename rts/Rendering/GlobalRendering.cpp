@@ -778,6 +778,12 @@ void CGlobalRendering::CheckGLExtensions()
 			LOG("[GR::%s] Detected external GL debug tool %s, enabling compatibility mode", __func__, debugStr);
 			underExternalDebug = true;
 		}
+
+		// Those are deliberately non-standard enums, so when no such tool is
+		// attached - the normal case - the queries above raise GL_INVALID_ENUM.
+		// Swallow it here rather than let it surface later as a spurious error
+		// against whatever happens to drain the queue next.
+		while (glGetError() != GL_NO_ERROR) {}
 	}
 	#endif
 
@@ -1833,7 +1839,16 @@ void main()
 	testShader.Disable();
 	testShader.Validate();
 
-	return testShader.IsValid();
+	const bool isValid = testShader.IsValid();
+
+	// Failing is the expected outcome below 4.3, and Enable() then calls
+	// glUseProgram on an unlinked program, which is GL_INVALID_OPERATION. The
+	// probe's own errors are not interesting, so do not leave them queued for
+	// whatever drains next.
+	if (!isValid)
+		while (glGetError() != GL_NO_ERROR) {}
+
+	return isValid;
 #else
 	return false;
 #endif
