@@ -10,7 +10,7 @@
 	#define GBUFFER_MISCTEX_IDX 4
 #endif
 
-#if (GL_FRAGMENT_PRECISION_HIGH == 1)
+#if defined(GL_FRAGMENT_PRECISION_HIGH)
 // ancient GL3 ATI drivers confuse GLSL for GLSL-ES and require this
 precision highp float;
 #else

@@ -1,6 +1,6 @@
 #version 430 core
 
-#if (GL_ARB_conservative_depth == 1)
+#if defined(GL_ARB_conservative_depth)
 	layout(depth_unchanged) out float gl_FragDepth;
 #endif
 
