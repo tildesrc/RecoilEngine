@@ -184,7 +184,7 @@ void CSMFReadMap::LoadMinimap()
 	for (uint32_t i = 0; i < MINIMAP_NUM_MIPMAP; i++) {
 		const int mipsize = 1024 >> i;
 		const int size = ((mipsize + 3) / 4) * ((mipsize + 3) / 4) * 8;
-		glCompressedTexImage2DARB(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, mipsize, mipsize, 0, size, &minimapTexBuf[0] + offset);
+		glCompressedTexImage2D(GL_TEXTURE_2D, i, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, mipsize, mipsize, 0, size, &minimapTexBuf[0] + offset);
 		offset += size;
 	}
 }
