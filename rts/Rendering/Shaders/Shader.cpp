@@ -12,6 +12,8 @@
 
 #include "System/SafeUtil.h"
 #include "System/StringUtil.h"
+
+#include <regex>
 #include "System/FileSystem/FileHandler.h"
 #include "System/SpringHash.h"
 #include "System/Log/ILog.h"
@@ -156,6 +158,95 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 	}
 
 	return (p + "// ---- end compatibility prelude ----\n");
+}
+
+// GLSL ES forbids initializers on uniforms, but both engine and game shaders use
+// them for defaults ("always pass" alpha control, identity clip planes, ...), and
+// game shaders cannot be edited by the engine. So strip them at assembly time and
+// hand back what was stripped, for the caller to upload after linking.
+struct StrippedUniformDefault {
+	std::string name;
+	std::string value;
+};
+
+static void StripGlslUniformInitializers(std::string* src, std::vector<StrippedUniformDefault>* defaults)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	static const std::regex re(R"(^([ \t]*uniform[ \t]+[A-Za-z0-9_]+[ \t]+([A-Za-z0-9_]+)[ \t]*)=([^;]*);)", std::regex::multiline);
+
+	std::string out;
+	auto begin = std::sregex_iterator(src->begin(), src->end(), re);
+	auto end = std::sregex_iterator();
+	size_t last = 0;
+
+	for (auto it = begin; it != end; ++it) {
+		const std::smatch& m = *it;
+
+		out.append(*src, last, m.position(0) - last);
+		out.append(m[1].str());
+		out.append(";");
+
+		last = m.position(0) + m.length(0);
+
+		if (defaults != nullptr)
+			defaults->emplace_back(StrippedUniformDefault{m[2].str(), m[3].str()});
+	}
+
+	out.append(*src, last, std::string::npos);
+	*src = std::move(out);
+}
+
+// GLSL ES 300 has no interface blocks (they arrive in ES 3.1), but anonymous
+// ones are just a grouping of varyings, so "out Data { vec4 a; vec2 b; };"
+// flattens to "out vec4 a; out vec2 b;" with no change to how members are
+// referenced. Named instances would need member accesses rewritten too; the
+// engine does not use them, and this leaves them alone.
+static void FlattenGlslInterfaceBlocks(std::string* src)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	static const std::regex re(R"((in|out)[ \t]+[A-Za-z0-9_]+[ \t]*\{([^}]*)\}[ \t]*;)");
+
+	std::string out;
+	auto begin = std::sregex_iterator(src->begin(), src->end(), re);
+	auto end = std::sregex_iterator();
+	size_t last = 0;
+
+	for (auto it = begin; it != end; ++it) {
+		const std::smatch& m = *it;
+
+		out.append(*src, last, m.position(0) - last);
+		last = m.position(0) + m.length(0);
+
+		const std::string qualifier = m[1].str();
+		std::string members = m[2].str();
+
+		for (size_t pos = 0, nxt = 0; (nxt = members.find(';', pos)) != std::string::npos; pos = nxt + 1) {
+			std::string decl = members.substr(pos, nxt - pos);
+
+			// trim
+			const size_t b = decl.find_first_not_of(" \t\r\n");
+			const size_t e = decl.find_last_not_of(" \t\r\n");
+
+			if (b == std::string::npos)
+				continue;
+
+			out.append(qualifier).append(" ").append(decl, b, e - b + 1).append(";\n");
+		}
+	}
+
+	out.append(*src, last, std::string::npos);
+	*src = std::move(out);
+}
+
+// Experimental: rewrite an assembled source to target GLSL ES 300 (what WebGL2
+// speaks). Enabled with SPRING_DBG_ES_SHADERS so the output can be validated
+// offline; there is no ES context to run against yet.
+static bool WantGlslEsOutput()
+{
+	static const bool want = (getenv("SPRING_DBG_ES_SHADERS") != nullptr);
+	return want;
 }
 
 /*****************************************************************/
@@ -310,6 +401,7 @@ namespace Shader {
 		assert(!srcText.empty());
 
 		std::string sourceStr = srcText;
+		std::string compatPrelude;
 		std::string defFlags  = rawDefStrs + "\n" + modDefStrs;
 		std::string versionStr;
 
@@ -340,16 +432,43 @@ namespace Shader {
 			}
 		}
 
+		compatPrelude = GetGlslCompatPrelude(type, sourceStr);
+
 		// A core profile requires an explicit #version; shaders that relied on
 		// the default (110) do not compile at all without one.
 		if (globalRenderingInfo.glContextIsCore && versionStr.empty())
 			versionStr = "#version 150";
 
+		std::string esPrecision;
+		std::vector<StrippedUniformDefault> strippedDefaults;
+
+		if (WantGlslEsOutput()) {
+			// WebGL2 speaks GLSL ES 300, which needs the es-suffixed version,
+			// mandatory precision qualifiers, and no uniform initializers.
+			versionStr = "#version 300 es";
+			esPrecision =
+				"precision highp float;\n"
+				"precision highp int;\n"
+				"precision highp sampler2D;\n"
+				"precision highp samplerCube;\n"
+				"precision highp sampler2DShadow;\n";
+
+			// NOTE: strippedDefaults carries what each uniform was initialised to.
+			// Applying it needs a post-link pass that uploads those values once,
+			// which is not written yet - there is no ES context to run against,
+			// so nothing would exercise it. Until then an ES build would see
+			// those uniforms default to zero rather than to the shader's value.
+			StripGlslUniformInitializers(&sourceStr, &strippedDefaults);
+			StripGlslUniformInitializers(&compatPrelude, &strippedDefaults);
+
+			FlattenGlslInterfaceBlocks(&sourceStr);
+			FlattenGlslInterfaceBlocks(&compatPrelude);
+		}
+
 		// #extension must precede every non-preprocessor token, and the compat
 		// prelude below declares uniforms, so the directives have to be lifted
 		// out of the body and emitted between the version and the prelude.
 		std::string extensionsStr;
-		std::string compatPrelude = GetGlslCompatPrelude(type, sourceStr);
 
 		if (!compatPrelude.empty()) {
 			ExtractGlslExtensions(&sourceStr, &extensionsStr);
@@ -357,6 +476,7 @@ namespace Shader {
 		}
 
 		if (!versionStr.empty())    EnsureEndsWith(&versionStr,    "\n");
+		if (!esPrecision.empty())   EnsureEndsWith(&esPrecision,   "\n");
 		if (!extensionsStr.empty()) EnsureEndsWith(&extensionsStr, "\n");
 		if (!defFlags.empty())      EnsureEndsWith(&defFlags,      "\n");
 
@@ -366,6 +486,7 @@ namespace Shader {
 		std::vector<const GLchar*> sources = {
 			versionStr.c_str(),
 			extensionsStr.c_str(),
+			esPrecision.c_str(),
 			compatPrelude.c_str(),
 			"// SHADER FLAGS\n",
 			defFlags.c_str(),
