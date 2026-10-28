@@ -7,6 +7,7 @@
 
 #include "CommandColors.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GL/RenderBuffers.h"
 #include "Rendering/Textures/Bitmap.h"
@@ -338,13 +339,21 @@ void CMouseCursor::Draw(int x, int y, float scale) const
 
 	rb.AddQuadTriangles(CURSOR_VERTS);
 
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadMatrixf(cursorMat);
+	const CMatrix44f projMat = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
 
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadMatrixf(CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f));
+	// The fixed-function matrix stack does not exist in a core profile, so the
+	// loads below do nothing there and the quad would be drawn straight in clip
+	// space - a hugely stretched cursor. Hand the shader the same transform
+	// explicitly instead.
+	if (!globalRenderingInfo.glContextIsCore) {
+		glMatrixMode(GL_MODELVIEW);
+		glPushMatrix();
+		glLoadMatrixf(cursorMat);
+
+		glMatrixMode(GL_PROJECTION);
+		glPushMatrix();
+		glLoadMatrixf(projMat);
+	}
 
 
 	glEnable(GL_BLEND);
@@ -353,6 +362,12 @@ void CMouseCursor::Draw(int x, int y, float scale) const
 	glBindTexture(GL_TEXTURE_2D, image.texture);
 
 	sh.Enable();
+
+	if (globalRenderingInfo.glContextIsCore) {
+		const CMatrix44f mvp = projMat * cursorMat;
+		sh.SetUniformMatrix4x4("transformMatrix", false, &mvp.m[0]);
+	}
+
 	sh.SetUniform("alphaCtrl", 0.01f, 1.0f, 0.0f, 0.0f); // test > 0.01
 
 	rb.Submit(GL_TRIANGLES);
@@ -360,9 +375,11 @@ void CMouseCursor::Draw(int x, int y, float scale) const
 	sh.SetUniform("alphaCtrl", 0.0f, 0.0f, 0.0f, 1.0f); // no test
 	sh.Disable();
 
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix();
+	if (!globalRenderingInfo.glContextIsCore) {
+		glPopMatrix();
+		glMatrixMode(GL_MODELVIEW);
+		glPopMatrix();
+	}
 
 	glDisable(GL_BLEND);
 }
