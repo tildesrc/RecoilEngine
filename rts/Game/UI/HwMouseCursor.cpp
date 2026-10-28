@@ -747,7 +747,15 @@ void HardwareCursorSDL::PushImage(int xsize, int ysize, const void* mem)
         LOG_L(L_ERROR, "SDL_CreateRGBSurface failed: %s", SDL_GetError());
         return;
     }
-    SDL_memcpy(surface->pixels, mem, xsize * ysize * 4);
+    // SDL is free to pad each row, so the surface pitch is not necessarily
+    // xsize * 4; copying the image as one block then shears it by the padding.
+    for (int y = 0; y < ysize; ++y) {
+        SDL_memcpy(
+            static_cast<uint8_t*>(surface->pixels) + static_cast<size_t>(y) * surface->pitch,
+            static_cast<const uint8_t*>(mem) + static_cast<size_t>(y) * xsize * 4,
+            static_cast<size_t>(xsize) * 4
+        );
+    }
     this->frames.emplace_back(CursorFrameSDL{nullptr, surface, CMouseCursor::DEF_FRAME_LENGTH});
 }
 
