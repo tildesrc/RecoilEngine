@@ -798,11 +798,20 @@ namespace Shader {
 			compatLocs.normalMat        = glGetUniformLocation(objID, "spring_NormalMatrix");
 		}
 
-		// every location is -1 when the shader referenced none of the aliases,
-		// which is the common case once a shader has been modernised
-		if ((compatLocs.modelView | compatLocs.proj | compatLocs.modelViewProj |
-		     compatLocs.modelViewInv | compatLocs.projInv | compatLocs.modelViewProjInv |
-		     compatLocs.normalMat) == -1)
+		// Skip only when the shader referenced none of the aliases at all.
+		// NOTE: do not fold these with bitwise-or - -1 is all bits set, so
+		// "a | b | ... == -1" is true as soon as ANY one of them is unused, which
+		// silently skipped every shader that uses only some of the aliases.
+		const bool anyAliasUsed =
+			(compatLocs.modelView        != -1) ||
+			(compatLocs.proj             != -1) ||
+			(compatLocs.modelViewProj    != -1) ||
+			(compatLocs.modelViewInv     != -1) ||
+			(compatLocs.projInv          != -1) ||
+			(compatLocs.modelViewProjInv != -1) ||
+			(compatLocs.normalMat        != -1);
+
+		if (!anyAliasUsed)
 			return;
 
 		const CCamera* cam = CCameraHandler::GetActiveCamera();
@@ -861,6 +870,11 @@ namespace Shader {
 	}
 
 	void GLSLProgramObject::Link() {
+		// uniform locations do not survive a link, and a program may be linked
+		// after something already enabled it once, so drop the cache here rather
+		// than resolve it once and trust it forever
+		compatLocs = CompatUniformLocs{};
+
 		RECOIL_DETAILED_TRACY_ZONE;
 		RecompileIfNeeded(false);
 		assert(glIsProgram(objID));
@@ -981,6 +995,8 @@ namespace Shader {
 	}
 
 	void GLSLProgramObject::Reload(bool reloadFromDisk, bool validate) {
+		compatLocs = CompatUniformLocs{};
+
 		RECOIL_DETAILED_TRACY_ZONE;
 		const unsigned int oldProgID = objID;
 		const unsigned int oldSrcHash = curSrcHash;
