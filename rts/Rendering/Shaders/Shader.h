@@ -246,6 +246,9 @@ namespace Shader {
 		virtual void SetUniform3fv(int idx, GLsizei count, const float* v) = 0;
 		virtual void SetUniform4fv(int idx, GLsizei count, const float* v) = 0;
 
+		// see GLSLProgramObject::SetCompatTransform
+		virtual void SetCompatTransform(const CMatrix44f& mvp) {}
+
 		virtual void SetUniformMatrix2fv(int idx, bool transp, const float* v) {}
 		virtual void SetUniformMatrix3fv(int idx, bool transp, const float* v) {}
 		virtual void SetUniformMatrix4fv(int idx, bool transp, const float* v) {}
@@ -456,7 +459,13 @@ namespace Shader {
 		// Uploads the values behind the core-profile compatibility prelude's
 		// aliases (see GetGlslCompatPrelude). No-op outside a core profile and
 		// for programs that reference none of them.
+		//
+		// SetCompatUniforms() fills them from the active camera, which is right
+		// for world geometry but wrong for screen-space and off-screen passes.
+		// Those call SetCompatTransform() after Enable() to override it with the
+		// transform their vertices actually want.
 		void SetCompatUniforms();
+		void SetCompatTransform(const CMatrix44f& mvp) override;
 
 		void SetUniform1i(int idx, int   v0) override;
 		void SetUniform2i(int idx, int   v0, int   v1) override;

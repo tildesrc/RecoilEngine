@@ -1917,6 +1917,8 @@ void CMiniMap::DrawBackground() const
 
 	readMap->BindMiniMapTextures();
 	bgShader->Enable();
+	// this pass draws a [0,1] quad into the minimap FBO, not world geometry
+	bgShader->SetCompatTransform(GetMiniMapTransform(curPos, curDim, false));
 	bgShader->SetUniform("infotexMul", static_cast<float>(infoTextureHandler->IsEnabled()));
 	rb.DrawElements(GL_TRIANGLES);
 	bgShader->Disable();

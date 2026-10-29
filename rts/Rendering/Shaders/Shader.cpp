@@ -831,6 +831,23 @@ namespace Shader {
 		}
 	}
 
+	void GLSLProgramObject::SetCompatTransform(const CMatrix44f& mvp) {
+		RECOIL_DETAILED_TRACY_ZONE;
+
+		if (!globalRenderingInfo.glContextIsCore || objID == 0)
+			return;
+
+		SetCompatUniforms(); // resolves the locations if that has not happened yet
+
+		// a screen-space or off-screen pass has no separate model/view split:
+		// the whole transform is the projection the caller handed us
+		static const CMatrix44f identity;
+
+		if (compatLocs.modelViewProj != -1) glUniformMatrix4fv(compatLocs.modelViewProj, 1, false, mvp);
+		if (compatLocs.modelView     != -1) glUniformMatrix4fv(compatLocs.modelView    , 1, false, identity);
+		if (compatLocs.proj          != -1) glUniformMatrix4fv(compatLocs.proj         , 1, false, mvp);
+	}
+
 	void GLSLProgramObject::EnableRaw() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		glUseProgram(objID);
