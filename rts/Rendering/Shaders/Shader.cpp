@@ -895,6 +895,37 @@ namespace Shader {
 		if (compatLocs.proj          != -1) glUniformMatrix4fv(compatLocs.proj         , 1, false, mvp);
 	}
 
+	void GLSLProgramObject::SetCompatModelMatrix(const CMatrix44f& model) {
+		RECOIL_DETAILED_TRACY_ZONE;
+
+		if (!globalRenderingInfo.glContextIsCore || objID == 0)
+			return;
+
+		SetCompatUniforms(); // resolves the locations, and fills everything model-independent
+
+		const CCamera* cam = CCameraHandler::GetActiveCamera();
+
+		if (cam == nullptr)
+			return;
+
+		// the fixed-function modelview was view * model, and a call site that
+		// pushed a per-object matrix was multiplying it onto the loaded view
+		const CMatrix44f modelView = cam->GetViewMatrix() * model;
+
+		if (compatLocs.modelView     != -1) glUniformMatrix4fv(compatLocs.modelView    , 1, false, modelView);
+		if (compatLocs.modelViewProj != -1) glUniformMatrix4fv(compatLocs.modelViewProj, 1, false, cam->GetProjectionMatrix() * modelView);
+		if (compatLocs.modelViewInv  != -1) glUniformMatrix4fv(compatLocs.modelViewInv , 1, false, modelView.Invert());
+
+		if (compatLocs.normalMat != -1) {
+			// unlike the view-only case this cannot be assumed orthonormal - a
+			// model matrix may carry scale - so take the actual inverse-transpose
+			const CMatrix44f n = modelView.InvertAffine().Transpose();
+			const float m[9] = {n[0], n[1], n[2],  n[4], n[5], n[6],  n[8], n[9], n[10]};
+
+			glUniformMatrix3fv(compatLocs.normalMat, 1, false, &m[0]);
+		}
+	}
+
 	void GLSLProgramObject::EnableRaw() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		glUseProgram(objID);

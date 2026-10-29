@@ -337,8 +337,16 @@ void CUnitDrawerGLSL::DrawUnitNoTrans(const CUnit* unit, uint32_t preList, uint3
 void CUnitDrawerGLSL::DrawUnitTrans(const CUnit* unit, uint32_t preList, uint32_t postList, bool lodCall, bool noLuaCall) const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
+	const CMatrix44f transform = unit->GetTransformMatrix();
+
 	glPushMatrix();
-	glMultMatrixf(unit->GetTransformMatrix());
+	glMultMatrixf(transform);
+
+	// a core profile has no matrix stack, so the three calls around this draw
+	// do nothing there - hand the per-object transform to the shader instead.
+	// No-op on a compatibility profile, where the stack above is what counts.
+	if (Shader::IProgramObject* po = modelDrawerState->ActiveShader(); po != nullptr)
+		po->SetCompatModelMatrix(transform);
 
 	DrawUnitNoTrans(unit, preList, postList, lodCall, noLuaCall);
 

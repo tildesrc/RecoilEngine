@@ -248,6 +248,8 @@ namespace Shader {
 
 		// see GLSLProgramObject::SetCompatTransform
 		virtual void SetCompatTransform(const CMatrix44f& mvp) {}
+		// see GLSLProgramObject::SetCompatModelMatrix
+		virtual void SetCompatModelMatrix(const CMatrix44f& model) {}
 
 		virtual void SetUniformMatrix2fv(int idx, bool transp, const float* v) {}
 		virtual void SetUniformMatrix3fv(int idx, bool transp, const float* v) {}
@@ -471,8 +473,11 @@ namespace Shader {
 		// for world geometry but wrong for screen-space and off-screen passes.
 		// Those call SetCompatTransform() after Enable() to override it with the
 		// transform their vertices actually want.
+		// SetCompatModelMatrix() re-sends them for a per-object transform that
+		// used to go through glPushMatrix/glMultMatrixf around the draw.
 		void SetCompatUniforms();
 		void SetCompatTransform(const CMatrix44f& mvp) override;
+		void SetCompatModelMatrix(const CMatrix44f& model) override;
 
 		void SetUniform1i(int idx, int   v0) override;
 		void SetUniform2i(int idx, int   v0, int   v1) override;
