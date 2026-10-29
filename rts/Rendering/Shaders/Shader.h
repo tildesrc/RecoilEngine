@@ -25,6 +25,23 @@ struct fast_hash
 };
 
 namespace Shader {
+
+	// Fixed attribute locations for the vertex inputs the core-profile
+	// compatibility prelude substitutes for gl_Vertex and friends (see
+	// GetGlslCompatPrelude). A core profile has no fixed-function vertex
+	// arrays, so call sites that used to feed geometry with
+	// glVertexPointer/glNormalPointer/glTexCoordPointer must bind generic
+	// attribute arrays instead - and those need a location both sides agree
+	// on, which is why these are bound explicitly before every link rather
+	// than left to the linker.
+	enum CompatAttribLoc {
+		COMPAT_ATTRIB_VERTEX    = 0,
+		COMPAT_ATTRIB_NORMAL    = 1,
+		COMPAT_ATTRIB_COLOR     = 2,
+		COMPAT_ATTRIB_TEXCOORD0 = 3,
+		COMPAT_ATTRIB_TEXCOORD1 = 4,
+	};
+
 	struct IShaderObject {
 	public:
 		IShaderObject(unsigned int shType, const std::string& shSrcFile, const std::string& shSrcDefs = "")
@@ -448,6 +465,8 @@ namespace Shader {
 		};
 		CompatUniformLocs compatLocs;
 
+		inline static GLSLProgramObject* boundProgram = nullptr;
+
 		~GLSLProgramObject() override { Release(); }
 
 		void BindAttribLocation(const std::string& name, uint32_t index) override;
@@ -478,6 +497,16 @@ namespace Shader {
 		void SetCompatUniforms();
 		void SetCompatTransform(const CMatrix44f& mvp) override;
 		void SetCompatModelMatrix(const CMatrix44f& model) override;
+
+		// glUniform* applies to whichever program is currently bound, and the
+		// drawer's "active" shader is not always that one, so a per-object
+		// matrix set through the wrong handle lands on the wrong program and
+		// the object draws at the world origin. Route it through the program
+		// that EnableRaw() actually bound.
+		static void SetBoundCompatModelMatrix(const CMatrix44f& model) {
+			if (boundProgram != nullptr)
+				boundProgram->SetCompatModelMatrix(model);
+		}
 
 		void SetUniform1i(int idx, int   v0) override;
 		void SetUniform2i(int idx, int   v0, int   v1) override;

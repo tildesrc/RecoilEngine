@@ -170,6 +170,10 @@ void CFeatureDrawerLegacy::DrawFeatureTrans(const CFeature* feature, unsigned in
 	glPushMatrix();
 	glMultMatrixf(feature->GetTransformMatrixRef());
 
+	// see CUnitDrawerGLSL::DrawUnitTrans - without this every feature collapses
+	// onto the world origin on a core profile, where the stack above is a no-op
+	Shader::GLSLProgramObject::SetBoundCompatModelMatrix(feature->GetTransformMatrixRef());
+
 	DrawFeatureNoTrans(feature, preList, postList, lodCall, noLuaCall);
 
 	glPopMatrix();

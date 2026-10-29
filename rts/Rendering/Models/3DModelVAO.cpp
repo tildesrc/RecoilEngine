@@ -9,6 +9,8 @@
 #include "3DModelPiece.hpp"
 #include "IModelParser.h"
 #include "Rendering/ModelsDataUploader.h"
+#include "Rendering/GlobalRenderingInfo.h"
+#include "Rendering/Shaders/Shader.h"
 #include "Sim/Units/Unit.h"
 #include "Sim/Units/UnitDef.h"
 #include "Sim/Features/Feature.h"
@@ -239,6 +241,48 @@ void S3DModelVAO::Unbind() const
 void S3DModelVAO::BindLegacyVertexAttribsAndVBOs() const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
+
+	if (globalRenderingInfo.glContextIsCore) {
+		// A core profile has none of the fixed-function vertex arrays used
+		// below, so every call in that path is a silent no-op there and the
+		// draw that follows has no vertex data at all - which is why unit
+		// models drew nothing. It also has no default vertex-array object, so
+		// the generic attribute arrays that replace them need a VAO bound to
+		// live in; without one every glEnableVertexAttribArray is
+		// GL_INVALID_OPERATION and the draw fails the same way.
+		//
+		// Bind the VAO first: it captures the element-buffer binding and the
+		// attribute pointers (each with the buffer bound at the time), so the
+		// buffers have to be bound while it is current, and afterwards binding
+		// the VAO alone restores all of it.
+		legacyVAO.Bind();
+
+		if (!legacyVAOInitialized) {
+			legacyVAOInitialized = true;
+
+			vertVBO.Bind();
+			indxVBO.Bind();
+
+			glEnableVertexAttribArray(Shader::COMPAT_ATTRIB_VERTEX);
+			glVertexAttribPointer(Shader::COMPAT_ATTRIB_VERTEX, 3, GL_FLOAT, false, sizeof(SVertexData), vertVBO.GetPtr(offsetof(SVertexData, pos)));
+
+			glEnableVertexAttribArray(Shader::COMPAT_ATTRIB_NORMAL);
+			glVertexAttribPointer(Shader::COMPAT_ATTRIB_NORMAL, 3, GL_FLOAT, false, sizeof(SVertexData), vertVBO.GetPtr(offsetof(SVertexData, normal)));
+
+			glEnableVertexAttribArray(Shader::COMPAT_ATTRIB_TEXCOORD0);
+			glVertexAttribPointer(Shader::COMPAT_ATTRIB_TEXCOORD0, 2, GL_FLOAT, false, sizeof(SVertexData), vertVBO.GetPtr(offsetof(SVertexData, texCoords[0])));
+
+			glEnableVertexAttribArray(Shader::COMPAT_ATTRIB_TEXCOORD1);
+			glVertexAttribPointer(Shader::COMPAT_ATTRIB_TEXCOORD1, 2, GL_FLOAT, false, sizeof(SVertexData), vertVBO.GetPtr(offsetof(SVertexData, texCoords[1])));
+
+			// unbind the array buffer only - unbinding the element buffer here
+			// would clear it from the VAO we are still inside
+			vertVBO.Unbind();
+		}
+
+		return;
+	}
+
 	vertVBO.Bind();
 	indxVBO.Bind();
 
@@ -268,6 +312,13 @@ void S3DModelVAO::BindLegacyVertexAttribsAndVBOs() const
 void S3DModelVAO::UnbindLegacyVertexAttribsAndVBOs() const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
+	if (globalRenderingInfo.glContextIsCore) {
+		// the VAO holds the attribute state and the element-buffer binding, so
+		// dropping it is the whole teardown - the buffers stay bound to it
+		legacyVAO.Unbind();
+		return;
+	}
+
 	glClientActiveTexture(GL_TEXTURE6);
 	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 

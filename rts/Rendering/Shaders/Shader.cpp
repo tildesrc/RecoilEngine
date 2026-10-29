@@ -929,12 +929,17 @@ namespace Shader {
 	void GLSLProgramObject::EnableRaw() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		glUseProgram(objID);
+		boundProgram = this;
 		SetCompatUniforms();
 		IProgramObject::Enable();
 	}
 	void GLSLProgramObject::DisableRaw() {
 		RECOIL_DETAILED_TRACY_ZONE;
 		IProgramObject::Disable();
+
+		if (boundProgram == this)
+			boundProgram = nullptr;
+
 		glUseProgram(0);
 	}
 
@@ -1138,6 +1143,18 @@ namespace Shader {
 
 			for (const auto& [name, index] : attribLocations) {
 				glBindAttribLocation(objID, index, name.c_str());
+			}
+
+			// pin the compatibility prelude's vertex inputs so that call sites
+			// feeding geometry through generic attribute arrays know where to
+			// put it. Binding a name the program does not use is harmless, and
+			// an explicit layout qualifier in the shader still wins over this.
+			if (globalRenderingInfo.glContextIsCore) {
+				glBindAttribLocation(objID, COMPAT_ATTRIB_VERTEX   , "spring_Vertex");
+				glBindAttribLocation(objID, COMPAT_ATTRIB_NORMAL   , "spring_Normal");
+				glBindAttribLocation(objID, COMPAT_ATTRIB_COLOR    , "spring_Color");
+				glBindAttribLocation(objID, COMPAT_ATTRIB_TEXCOORD0, "spring_MultiTexCoord0");
+				glBindAttribLocation(objID, COMPAT_ATTRIB_TEXCOORD1, "spring_MultiTexCoord1");
 			}
 
 			for (const auto& [name, index] : outputLocations) {

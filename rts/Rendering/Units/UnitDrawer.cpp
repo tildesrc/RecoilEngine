@@ -345,8 +345,7 @@ void CUnitDrawerGLSL::DrawUnitTrans(const CUnit* unit, uint32_t preList, uint32_
 	// a core profile has no matrix stack, so the three calls around this draw
 	// do nothing there - hand the per-object transform to the shader instead.
 	// No-op on a compatibility profile, where the stack above is what counts.
-	if (Shader::IProgramObject* po = modelDrawerState->ActiveShader(); po != nullptr)
-		po->SetCompatModelMatrix(transform);
+	Shader::GLSLProgramObject::SetBoundCompatModelMatrix(transform);
 
 	DrawUnitNoTrans(unit, preList, postList, lodCall, noLuaCall);
 

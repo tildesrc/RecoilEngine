@@ -140,5 +140,12 @@ private:
 	VBO instVBO;
 	VAO vao;
 
+	// A core profile has no default vertex-array object, so the legacy
+	// (non-GL4) model path needs one of its own to hold its attribute
+	// pointers and element-buffer binding. Separate from <vao>, whose
+	// attribute layout belongs to the instanced path.
+	VAO legacyVAO;
+	mutable bool legacyVAOInitialized = false;
+
 	std::unordered_map<SIndexAndCount, std::vector<SInstanceData>, SIndexAndCount> modelDataToInstance;
 };
