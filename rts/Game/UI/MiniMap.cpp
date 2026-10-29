@@ -1230,6 +1230,32 @@ void CMiniMap::UpdateTextureCache()
 
 /******************************************************************************/
 
+
+// The minimap emits its geometry in normalized [0,1] screen space and relies on
+// the fixed-function stack for the ortho projection, plus a translate/scale to
+// place and size itself. None of that exists in a core profile, so build the
+// same transform explicitly and hand it to the render-buffer shader.
+static CMatrix44f GetMiniMapTransform(int2 curPos, int2 curDim, bool placed)
+{
+	CMatrix44f m = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+
+	if (placed) {
+		m.Translate(curPos.x * globalRendering->pixelX, curPos.y * globalRendering->pixelY, 0.0f);
+		m.Scale({curDim.x * globalRendering->pixelX, curDim.y * globalRendering->pixelY, 1.0f});
+	}
+
+	return m;
+}
+
+static void SetMiniMapTransform(Shader::IProgramObject& sh, int2 curPos, int2 curDim, bool placed)
+{
+	if (!globalRenderingInfo.glContextIsCore)
+		return;
+
+	const CMatrix44f m = GetMiniMapTransform(curPos, curDim, placed);
+	sh.SetUniformMatrix4x4("transformMatrix", false, &m.m[0]);
+}
+
 void CMiniMap::Draw()
 {
 	ZoneScopedN("MiniMap::Draw");
@@ -1569,6 +1595,7 @@ void CMiniMap::DrawFrame()
 
 	auto& sh = rb.GetShader();
 	sh.Enable();
+	SetMiniMapTransform(sh, curPos, curDim, false);
 
 	rb.AddVertex({ float(curPos.x            - 2 + 0.5f) * px, float(curPos.y            - 2 + 0.5f) * py, {0.0f, 0.0f, 0.0f, 1.0f} });
 	rb.AddVertex({ float(curPos.x            - 2 + 0.5f) * px, float(curPos.y + curDim.y + 2 - 0.5f) * py, {0.0f, 0.0f, 0.0f, 1.0f} });
@@ -1808,6 +1835,7 @@ bool CMiniMap::RenderCachedTexture(bool useNormalizedCoors)
 
 	auto& sh = rb.GetShader();
 	sh.Enable();
+	SetMiniMapTransform(sh, curPos, curDim, useNormalizedCoors && !globalRendering->dualScreenMode);
 	sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
 	rb.DrawElements(GL_TRIANGLES);
 	sh.Disable();
