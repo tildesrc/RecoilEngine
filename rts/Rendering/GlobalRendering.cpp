@@ -517,6 +517,95 @@ SDL_GLContext CGlobalRendering::CreateGLContext(const int2& minCtx)
 	return (newContext = SDL_GL_CreateContext(sdlWindow));
 }
 
+// GLAD derives its GLAD_GL_<vendor>_<ext> booleans purely from the runtime
+// extension string. A core profile is not required to advertise extensions
+// whose functionality it absorbed, and macOS in particular advertises almost
+// none of them - so checks like "GLAD_GL_ARB_vertex_buffer_object" read false
+// on a 4.1-core context that has had VBOs since 1.5. Engine code uses those
+// booleans as feature gates (VBO::IsSupported() silently falls back to
+// client-memory arrays when they are false), so without this back-fill a core
+// profile loses VBOs, VAOs, UBOs and more.
+//
+// Back-fill each flag the engine queries from the GL version that promoted it
+// to core. Only promotions whose core API is call-compatible with the
+// extension are listed; entry points are already resolved by GLAD's
+// per-version loaders, so only the booleans need correcting. On a
+// compatibility profile the strings are advertised anyway and this is a no-op.
+static void BackfillCoreExtensionFlags()
+{
+#if !defined(HEADLESS)
+	int numBackfilled = 0;
+
+	#define BACKFILL(ext, major, minor)                                      \
+		if (!GLAD_GL_ ## ext && GLAD_GL_VERSION_ ## major ## _ ## minor) {   \
+			GLAD_GL_ ## ext = 1;                                             \
+			++numBackfilled;                                                 \
+		}
+
+	BACKFILL(ARB_multitexture              , 1, 3)
+	BACKFILL(ARB_multisample               , 1, 3)
+	BACKFILL(ARB_texture_compression       , 1, 3)
+	BACKFILL(ARB_texture_env_combine       , 1, 3)
+	BACKFILL(EXT_blend_func_separate       , 1, 4)
+	BACKFILL(ARB_vertex_buffer_object      , 1, 5)
+	BACKFILL(ARB_occlusion_query           , 1, 5)
+	BACKFILL(ARB_shading_language_100      , 2, 0)
+	BACKFILL(ARB_vertex_shader             , 2, 0)
+	BACKFILL(ARB_fragment_shader           , 2, 0)
+	BACKFILL(ARB_draw_buffers              , 2, 0)
+	BACKFILL(ARB_texture_non_power_of_two  , 2, 0)
+	BACKFILL(EXT_blend_equation_separate   , 2, 0)
+	BACKFILL(EXT_pixel_buffer_object       , 2, 1)
+	BACKFILL(ARB_pixel_buffer_object       , 2, 1)
+	BACKFILL(ARB_framebuffer_object        , 3, 0)
+	BACKFILL(EXT_framebuffer_object        , 3, 0)
+	BACKFILL(EXT_framebuffer_blit          , 3, 0)
+	BACKFILL(EXT_framebuffer_multisample   , 3, 0)
+	BACKFILL(EXT_framebuffer_sRGB          , 3, 0)
+	BACKFILL(ARB_framebuffer_sRGB          , 3, 0)
+	BACKFILL(ARB_map_buffer_range          , 3, 0)
+	BACKFILL(ARB_vertex_array_object       , 3, 0)
+	BACKFILL(ARB_texture_float             , 3, 0)
+	BACKFILL(ARB_texture_rg                , 3, 0)
+	BACKFILL(ARB_depth_buffer_float        , 3, 0)
+	BACKFILL(ARB_half_float_pixel          , 3, 0)
+	BACKFILL(ARB_half_float_vertex         , 3, 0)
+	BACKFILL(EXT_texture_array             , 3, 0)
+	BACKFILL(ARB_uniform_buffer_object     , 3, 1)
+	BACKFILL(ARB_copy_buffer               , 3, 1)
+	BACKFILL(ARB_texture_rectangle         , 3, 1)
+	BACKFILL(ARB_draw_instanced            , 3, 1)
+	BACKFILL(ARB_texture_buffer_object     , 3, 1)
+	BACKFILL(ARB_depth_clamp               , 3, 2)
+	BACKFILL(ARB_draw_elements_base_vertex , 3, 2)
+	BACKFILL(ARB_sync                      , 3, 2)
+	BACKFILL(ARB_seamless_cube_map         , 3, 2)
+	BACKFILL(ARB_texture_multisample       , 3, 2)
+	BACKFILL(ARB_instanced_arrays          , 3, 3)
+	BACKFILL(ARB_explicit_attrib_location  , 3, 3)
+	BACKFILL(ARB_timer_query               , 3, 3)
+	BACKFILL(ARB_texture_swizzle           , 3, 3)
+	BACKFILL(ARB_blend_func_extended       , 3, 3)
+	BACKFILL(ARB_sampler_objects           , 3, 3)
+	BACKFILL(ARB_vertex_type_2_10_10_10_rev, 3, 3)
+	BACKFILL(ARB_texture_query_lod         , 4, 0)
+	BACKFILL(ARB_transform_feedback2       , 4, 0)
+	BACKFILL(ARB_transform_feedback3       , 4, 0)
+	BACKFILL(ARB_gpu_shader5               , 4, 0)
+	BACKFILL(ARB_tessellation_shader       , 4, 0)
+	BACKFILL(ARB_ES2_compatibility         , 4, 1)
+	BACKFILL(ARB_get_program_binary        , 4, 1)
+	BACKFILL(ARB_separate_shader_objects   , 4, 1)
+	BACKFILL(ARB_viewport_array            , 4, 1)
+
+	#undef BACKFILL
+
+	LOG("[GR::%s] re-enabled %d extension flag(s) absorbed into this context's core version",
+		__func__, numBackfilled);
+#endif
+}
+
+
 bool CGlobalRendering::CreateWindowAndContext(const char* title)
 {
 	if (SDL_Init(SDL_INIT_VIDEO) == -1) {
@@ -590,6 +679,7 @@ bool CGlobalRendering::CreateWindowAndContext(const char* title)
 		return false;
 
 	gladLoadGL();
+	BackfillCoreExtensionFlags();
 	GLX::Load(sdlWindow);
 
 	if (!CheckGLContextVersion(minCtx)) {
