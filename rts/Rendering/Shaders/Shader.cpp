@@ -8,6 +8,7 @@
 #include "Rendering/GlobalRendering.h"
 #include "Rendering/GlobalRenderingInfo.h"
 #include "Game/Camera.h"
+#include "Rendering/Env/ISky.h"
 #include "Game/CameraHandler.h"
 
 #include "System/SafeUtil.h"
@@ -796,6 +797,11 @@ namespace Shader {
 			compatLocs.projInv          = glGetUniformLocation(objID, "spring_ProjectionMatrixInverse");
 			compatLocs.modelViewProjInv = glGetUniformLocation(objID, "spring_ModelViewProjectionMatrixInverse");
 			compatLocs.normalMat        = glGetUniformLocation(objID, "spring_NormalMatrix");
+			compatLocs.fogColor         = glGetUniformLocation(objID, "spring_Fog.color");
+			compatLocs.fogDensity       = glGetUniformLocation(objID, "spring_Fog.density");
+			compatLocs.fogStart         = glGetUniformLocation(objID, "spring_Fog.start");
+			compatLocs.fogEnd           = glGetUniformLocation(objID, "spring_Fog.end");
+			compatLocs.fogScale         = glGetUniformLocation(objID, "spring_Fog.scale");
 		}
 
 		// Skip only when the shader referenced none of the aliases at all.
@@ -809,7 +815,9 @@ namespace Shader {
 			(compatLocs.modelViewInv     != -1) ||
 			(compatLocs.projInv          != -1) ||
 			(compatLocs.modelViewProjInv != -1) ||
-			(compatLocs.normalMat        != -1);
+			(compatLocs.normalMat        != -1) ||
+			(compatLocs.fogColor         != -1) ||
+			(compatLocs.fogEnd           != -1);
 
 		if (!anyAliasUsed)
 			return;
@@ -829,6 +837,36 @@ namespace Shader {
 		if (compatLocs.modelViewInv     != -1) glUniformMatrix4fv(compatLocs.modelViewInv    , 1, false, cam->GetViewMatrixInverse());
 		if (compatLocs.projInv          != -1) glUniformMatrix4fv(compatLocs.projInv         , 1, false, cam->GetProjectionMatrixInverse());
 		if (compatLocs.modelViewProjInv != -1) glUniformMatrix4fv(compatLocs.modelViewProjInv, 1, false, cam->GetViewProjectionMatrixInverse());
+
+		// gl_Fog: mirror what ISky::SetupFog() used to push through glFog*.
+		// Leaving it unset is not harmless - the shaders compute
+		// fogFactor = (end - dist) * scale, so zeros clamp it to 0 and every
+		// fragment comes out as the (black) fog colour.
+		if (compatLocs.fogColor != -1 || compatLocs.fogEnd != -1) {
+			const ISky* sky = ISky::GetSky().get();
+
+			if (sky != nullptr) {
+				const float farDist = cam->GetFarPlaneDist();
+
+				float fogStart = farDist * sky->fogStart;
+				float fogEnd   = farDist * sky->fogEnd;
+
+				// with fog off the shaders still evaluate the same expression,
+				// so push a range that clamps fogFactor to 1 instead
+				if (!globalRendering->drawFog) {
+					fogStart = farDist * 1.0e3f;
+					fogEnd   = farDist * 2.0e3f;
+				}
+
+				const float fogScale = (fogEnd > fogStart) ? (1.0f / (fogEnd - fogStart)) : 0.0f;
+
+				if (compatLocs.fogColor   != -1) glUniform4fv(compatLocs.fogColor, 1, &sky->fogColor.x);
+				if (compatLocs.fogDensity != -1) glUniform1f(compatLocs.fogDensity, 1.0f);
+				if (compatLocs.fogStart   != -1) glUniform1f(compatLocs.fogStart, fogStart);
+				if (compatLocs.fogEnd     != -1) glUniform1f(compatLocs.fogEnd, fogEnd);
+				if (compatLocs.fogScale   != -1) glUniform1f(compatLocs.fogScale, fogScale);
+			}
+		}
 
 		if (compatLocs.normalMat != -1) {
 			// the view matrix' upper-left 3x3 is orthonormal, so its

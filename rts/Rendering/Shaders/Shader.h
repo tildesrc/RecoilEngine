@@ -436,6 +436,13 @@ namespace Shader {
 			int projInv = -1;
 			int modelViewProjInv = -1;
 			int normalMat = -1;
+			// gl_Fog was fixed-function state the engine set with glFog*; those
+			// calls do nothing in a core profile, so the values are uploaded here
+			int fogColor = -1;
+			int fogDensity = -1;
+			int fogStart = -1;
+			int fogEnd = -1;
+			int fogScale = -1;
 		};
 		CompatUniformLocs compatLocs;
 
