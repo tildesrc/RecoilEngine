@@ -549,6 +549,30 @@ namespace LuaMatrixStack {
 	}
 }
 
+// The transform the fixed-function pipeline would have had for the pass Lua is
+// drawing in, with whatever Lua built up on its own matrix stack folded in -
+// exactly where the fixed-function modelview sat. Text needs the same matrix as
+// geometry: a widget that sets up 0..1 screen coordinates with gl.Scale expects
+// its gl.Text to land in that space too.
+CMatrix44f LuaOpenGL::GetDrawTransform()
+{
+	CMatrix44f transform;
+
+	switch (LuaOpenGL::GetDrawMode()) {
+		case LuaOpenGL::DRAW_SCREEN:
+		case LuaOpenGL::DRAW_MINIMAP:
+		case LuaOpenGL::DRAW_MINIMAP_BACKGROUND: {
+			transform = globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
+		} break;
+		default: {
+			if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
+				transform = cam->GetViewProjectionMatrix();
+		} break;
+	}
+
+	return transform * LuaMatrixStack::Get();
+}
+
 namespace LuaImmediate {
 	static bool  active   = false;
 	static GLenum primMode = 0;
@@ -628,27 +652,9 @@ namespace LuaImmediate {
 			return;
 		}
 
-		// no shader: supply the transform the fixed-function path would have
-		// had, chosen by which pass Lua is drawing in
+		// no shader: supply the transform the fixed-function path would have had
 		Shader::IProgramObject& sh = rb.GetShader();
-		CMatrix44f transform;
-
-		switch (LuaOpenGL::GetDrawMode()) {
-			case LuaOpenGL::DRAW_SCREEN:
-			case LuaOpenGL::DRAW_MINIMAP:
-			case LuaOpenGL::DRAW_MINIMAP_BACKGROUND: {
-				transform = globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
-			} break;
-			default: {
-				if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
-					transform = cam->GetViewProjectionMatrix();
-			} break;
-		}
-
-		// whatever Lua built up with gl.Translate/Rotate/Scale/Billboard sits
-		// between the pass transform and the vertices, exactly as the
-		// fixed-function modelview would have
-		transform = transform * LuaMatrixStack::Get();
+		const CMatrix44f transform = LuaOpenGL::GetDrawTransform();
 
 		sh.Enable();
 		sh.SetUniformMatrix4x4("transformMatrix", false, &transform.m[0]);
@@ -1632,6 +1638,10 @@ int LuaOpenGL::BeginText(lua_State* L)
 {
 	CheckDrawingEnabled(L, __func__);
 	auto userDefinedBlending = luaL_optboolean(L, 2, false);
+
+	if (LuaMatrixStack::Emulated())
+		font->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
+
 	font->Begin(userDefinedBlending);
 	return 0;
 }
@@ -1644,6 +1654,10 @@ int LuaOpenGL::EndText(lua_State* L)
 {
 	CheckDrawingEnabled(L, __func__);
 	font->End();
+
+	if (LuaMatrixStack::Emulated())
+		font->ResetTransformMatrix();
+
 	return 0;
 }
 
@@ -1724,7 +1738,18 @@ int LuaOpenGL::Text(lua_State* L)
 	}
 
 	font->SetTextColor(SColor(color.data()));
+
+	// a core profile has no fixed-function modelview for the font renderer to
+	// read, and its screen-space fallback assumes pixel coordinates - but a
+	// widget may have set up its own space with gl.Scale/gl.Translate. Hand it
+	// the same matrix the geometry path uses.
+	if (LuaMatrixStack::Emulated())
+		font->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
+
 	font->glPrint(x, y, size, options, text);
+
+	if (LuaMatrixStack::Emulated())
+		font->ResetTransformMatrix();
 
 	return 0;
 }

@@ -145,6 +145,12 @@ class LuaOpenGL {
 		static DrawMode drawMode;
 	public:
 		static DrawMode GetDrawMode() { return drawMode; }
+
+		// The transform the fixed-function pipeline would have had for the pass
+		// Lua is drawing in, with Lua's own matrix stack folded in. Needed by
+		// anything that draws for Lua on a core profile - geometry and text
+		// alike. Identity-equivalent outside a core profile.
+		static CMatrix44f GetDrawTransform();
 	private:
 		static DrawMode prevDrawMode; // for minimap (when drawn in Screen mode)
 		static bool safeMode;

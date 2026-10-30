@@ -2,6 +2,7 @@
 
 
 #include "LuaFonts.h"
+#include "Rendering/GlobalRenderingInfo.h"
 
 #include "LuaInclude.h"
 
@@ -328,7 +329,18 @@ int LuaFonts::Print(lua_State* L)
 		}
 	}
 
+	// see LuaOpenGL::GetDrawTransform - on a core profile the font renderer has
+	// no fixed-function modelview to read, and its screen-space fallback assumes
+	// pixel coordinates, but a widget may be drawing in its own scaled space
+	const bool setXf = globalRenderingInfo.glContextIsCore;
+
+	if (setXf)
+		f->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
+
 	f->glPrint(x, y, size, options, text);
+
+	if (setXf)
+		f->ResetTransformMatrix();
 	return 0;
 }
 
@@ -417,6 +429,9 @@ int LuaFonts::Begin(lua_State* L)
 	CheckDrawingEnabled(L, __func__);
 	auto f = tofont(L, 1);
 	auto userDefinedBlending = luaL_optboolean(L, 2, false);
+	if (globalRenderingInfo.glContextIsCore)
+		f->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
+
 	f->Begin(userDefinedBlending);
 	return 0;
 }
@@ -431,6 +446,9 @@ int LuaFonts::End(lua_State* L)
 	CheckDrawingEnabled(L, __func__);
 	auto f = tofont(L, 1);
 	f->End();
+
+	if (globalRenderingInfo.glContextIsCore)
+		f->ResetTransformMatrix();
 	return 0;
 }
 
