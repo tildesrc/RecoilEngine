@@ -261,6 +261,39 @@ void End()
 	if (out.empty())
 		return;
 
+
+	// VA_TYPE_TC's shader is "vcolor * texture(tex, uv)", so an untextured draw
+	// samples whatever is bound to unit 0 - nothing, which reads as black and
+	// multiplies the whole primitive away. Untextured geometry goes through the
+	// colour-only buffer instead, whose shader is just "vcolor".
+	GLint boundTex = 0;
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
+
+	if (boundTex == 0) {
+		auto& rbc = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_C>();
+		for (const VA_TYPE_TC& v: out)
+			rbc.AddVertex(VA_TYPE_C{v.pos, v.c});
+
+		GLint prog = 0;
+		glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+
+		if (prog != 0) {
+			rbc.Submit(mode);
+			return;
+		}
+
+		Shader::IProgramObject& shc = rbc.GetShader();
+		const CMatrix44f mvpc = GetMVP();
+		const float4 alphaCtrl = GetAlphaCtrl();
+
+		shc.Enable();
+		shc.SetUniformMatrix4x4("transformMatrix", false, &mvpc.m[0]);
+		shc.SetUniform4v("alphaCtrl", &alphaCtrl.x);
+		rbc.Submit(mode);
+		shc.Disable();
+		return;
+	}
+
 	auto& rb = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_TC>();
 	for (const VA_TYPE_TC& v: out)
 		rb.AddVertex(VA_TYPE_TC{v});
