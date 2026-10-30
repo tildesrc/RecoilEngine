@@ -33,6 +33,7 @@ public:
 	// the renderer falls back to the screen matrices.
 	void SetTransformMatrix(const CMatrix44f& m) { transformMatrix = m; haveTransformMatrix = true; }
 	void ResetTransformMatrix() { haveTransformMatrix = false; }
+	bool HasTransformMatrix() const { return haveTransformMatrix; }
 
 	static std::unique_ptr<CglFontRenderer> CreateInstance();
 	static void DeleteInstance(std::unique_ptr<CglFontRenderer>& instance);

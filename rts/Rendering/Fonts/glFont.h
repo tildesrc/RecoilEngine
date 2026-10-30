@@ -65,6 +65,11 @@ public:
 
 	void DrawBuffered(bool userDefinedBlending = false);
 
+	// which coordinate space the pending buffered glyphs were written in; see
+	// CglFont::glPrint and ::DrawBuffered
+	int bufferedNormCount = 0;
+	int bufferedPixelCount = 0;
+
 	void DrawWorldBuffered(bool userDefinedBlending = false);
 
 	void glWorldPrint(const float3& p, const float size, const std::string& str, int options = FONT_DESCENDER | FONT_CENTER | FONT_OUTLINE | FONT_BUFFERED);

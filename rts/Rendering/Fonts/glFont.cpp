@@ -701,9 +701,25 @@ void CglFont::DrawBuffered(bool userDefinedBlending)
 
 	fontRenderer->SetUserDefinedBlending(userDefinedBlending);
 
+	// buffered text took the same path as an immediate print but is drawn here,
+	// long after the caller's matrix setup; supply the 0..1 projection its
+	// coordinates were written against (see glPrint)
+	const bool setNormXf = globalRenderingInfo.glContextIsCore
+		&& (bufferedNormCount > 0 && bufferedPixelCount == 0)
+		&& !fontRenderer->HasTransformMatrix();
+
+	if (setNormXf)
+		SetTransformMatrix(CMatrix44f::ClipOrthoProj01());
+
 	fontRenderer->PushGLState(*this);
 	fontRenderer->DrawTraingleElements();
 	fontRenderer->PopGLState(*this);
+
+	if (setNormXf)
+		ResetTransformMatrix();
+
+	bufferedNormCount = 0;
+	bufferedPixelCount = 0;
 
 	fontRenderer->SetUserDefinedBlending(false);
 }
@@ -904,6 +920,26 @@ void CglFont::glPrint(float x, float y, float s, const int options, const std::s
 	const bool buffered = ((options & FONT_BUFFERED) != 0);
 	const bool immediate = (!inBeginEndBlock && !buffered);
 
+	// FONT_NORM keeps the glyphs in 0..1 and leaves the caller to supply a
+	// matching projection, which it used to do with glMatrixMode/glOrtho - a
+	// no-op in a core profile. The renderer's fallback assumes pixel
+	// coordinates, so a normalised string collapses into the screen corner
+	// without one. Remember which space the buffered glyphs are in so
+	// DrawBuffered can supply the right matrix; a batch that mixes the two
+	// cannot be fixed this way, so only claim it when every string agrees.
+	if ((options & FONT_NORM) != 0)
+		bufferedNormCount += buffered;
+	else
+		bufferedPixelCount += buffered;
+
+	const bool setNormXf = immediate
+		&& globalRenderingInfo.glContextIsCore
+		&& ((options & FONT_NORM) != 0)
+		&& !fontRenderer->HasTransformMatrix();
+
+	if (setNormXf)
+		SetTransformMatrix(CMatrix44f::ClipOrthoProj01());
+
 	if (immediate) {
 		// no buffering
 		Begin();
@@ -927,6 +963,9 @@ void CglFont::glPrint(float x, float y, float s, const int options, const std::s
 		if (!inBeginEndBlock)
 			sync.Unlock();
 	}
+
+	if (setNormXf)
+		ResetTransformMatrix();
 
 	// reset text & outline colors (if changed via in-text colorcodes)
 	SetColors(&baseTextColor, &baseOutlineColor);
