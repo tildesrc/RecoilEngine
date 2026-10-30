@@ -69,6 +69,7 @@ set(sources_engine_Rendering
 		"${CMAKE_CURRENT_SOURCE_DIR}/GL/VAO.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/GL/glExtra.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/GL/State.cpp"
+		"${CMAKE_CURRENT_SOURCE_DIR}/GL/CompatPipeline.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/GL/myGL.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/GlobalRendering.cpp"
 		"${CMAKE_CURRENT_SOURCE_DIR}/GroundFlash.cpp"

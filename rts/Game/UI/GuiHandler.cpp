@@ -2,6 +2,8 @@
 
 #include "GuiHandler.h"
 
+#include "Rendering/GL/CompatPipeline.h"
+
 #include <Rml/Backends/RmlUi_Backend.h>
 #include "CommandColors.h"
 #include "KeyBindings.h"
@@ -2702,7 +2704,7 @@ void CGuiHandler::DrawCustomButton(const IconInfo& icon, bool highlight)
 	if (usedTexture)
 		return;
 
-	glColor4f(1.0f, 1.0f, 1.0f, 0.1f);
+	GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.1f);
 	DrawIconFrame(icon);
 }
 
@@ -2718,14 +2720,14 @@ bool CGuiHandler::DrawUnitBuildIcon(const IconInfo& icon, int unitDefID)
 	const Box& b = icon.visual;
 
 	glEnable(GL_TEXTURE_2D);
-	glColor4f(1.0f, 1.0f, 1.0f, textureAlpha);
+	GLCompat::Color4f(1.0f, 1.0f, 1.0f, textureAlpha);
 	glBindTexture(GL_TEXTURE_2D, CUnitDrawer::GetUnitDefImage(ud));
-	glBegin(GL_QUADS);
-		glTexCoord2f(0.0f, 0.0f); glVertex2f(b.x1, b.y1);
-		glTexCoord2f(1.0f, 0.0f); glVertex2f(b.x2, b.y1);
-		glTexCoord2f(1.0f, 1.0f); glVertex2f(b.x2, b.y2);
-		glTexCoord2f(0.0f, 1.0f); glVertex2f(b.x1, b.y2);
-	glEnd();
+	GLCompat::Begin(GL_QUADS);
+		GLCompat::TexCoord2f(0.0f, 0.0f); GLCompat::Vertex2f(b.x1, b.y1);
+		GLCompat::TexCoord2f(1.0f, 0.0f); GLCompat::Vertex2f(b.x2, b.y1);
+		GLCompat::TexCoord2f(1.0f, 1.0f); GLCompat::Vertex2f(b.x2, b.y2);
+		GLCompat::TexCoord2f(0.0f, 1.0f); GLCompat::Vertex2f(b.x1, b.y2);
+	GLCompat::End();
 
 	return true;
 }
@@ -2902,16 +2904,16 @@ bool CGuiHandler::DrawTexture(const IconInfo& icon, const std::string& texName)
 	}
 
 	glEnable(GL_TEXTURE_2D);
-	glColor4f(1.0f, 1.0f, 1.0f, textureAlpha);
+	GLCompat::Color4f(1.0f, 1.0f, 1.0f, textureAlpha);
 
 	// draw the full size quad
 	const Box& b = icon.visual;
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 0.0f); glVertex2f(b.x1, b.y1);
-	glTexCoord2f(1.0f, 0.0f); glVertex2f(b.x2, b.y1);
-	glTexCoord2f(1.0f, 1.0f); glVertex2f(b.x2, b.y2);
-	glTexCoord2f(0.0f, 1.0f); glVertex2f(b.x1, b.y2);
-	glEnd();
+	GLCompat::Begin(GL_QUADS);
+	GLCompat::TexCoord2f(0.0f, 0.0f); GLCompat::Vertex2f(b.x1, b.y1);
+	GLCompat::TexCoord2f(1.0f, 0.0f); GLCompat::Vertex2f(b.x2, b.y1);
+	GLCompat::TexCoord2f(1.0f, 1.0f); GLCompat::Vertex2f(b.x2, b.y2);
+	GLCompat::TexCoord2f(0.0f, 1.0f); GLCompat::Vertex2f(b.x1, b.y2);
+	GLCompat::End();
 
 	if (tex2.empty())
 		return true; // success, no second texture to draw
@@ -2930,12 +2932,12 @@ bool CGuiHandler::DrawTexture(const IconInfo& icon, const std::string& texName)
 	const float y2 = b.y2 + (yIconSize * yscale);
 
 	// draw the scaled quad
-	glBegin(GL_QUADS);
-	glTexCoord2f(0.0f, 0.0f); glVertex2f(x1, y1);
-	glTexCoord2f(1.0f, 0.0f); glVertex2f(x2, y1);
-	glTexCoord2f(1.0f, 1.0f); glVertex2f(x2, y2);
-	glTexCoord2f(0.0f, 1.0f); glVertex2f(x1, y2);
-	glEnd();
+	GLCompat::Begin(GL_QUADS);
+	GLCompat::TexCoord2f(0.0f, 0.0f); GLCompat::Vertex2f(x1, y1);
+	GLCompat::TexCoord2f(1.0f, 0.0f); GLCompat::Vertex2f(x2, y1);
+	GLCompat::TexCoord2f(1.0f, 1.0f); GLCompat::Vertex2f(x2, y2);
+	GLCompat::TexCoord2f(0.0f, 1.0f); GLCompat::Vertex2f(x1, y2);
+	GLCompat::End();
 
 	return true;
 }
@@ -2946,13 +2948,13 @@ void CGuiHandler::DrawIconFrame(const IconInfo& icon)
 	RECOIL_DETAILED_TRACY_ZONE;
 	const Box& b = icon.visual;
 	glDisable(GL_TEXTURE_2D);
-	glBegin(GL_LINE_LOOP);
+	GLCompat::Begin(GL_LINE_LOOP);
 	constexpr float fudge = 0.001f; // avoids getting creamed if iconBorder == 0.0
-	glVertex2f(b.x1 + fudge, b.y1 - fudge);
-	glVertex2f(b.x2 - fudge, b.y1 - fudge);
-	glVertex2f(b.x2 - fudge, b.y2 + fudge);
-	glVertex2f(b.x1 + fudge, b.y2 + fudge);
-	glEnd();
+	GLCompat::Vertex2f(b.x1 + fudge, b.y1 - fudge);
+	GLCompat::Vertex2f(b.x2 - fudge, b.y1 - fudge);
+	GLCompat::Vertex2f(b.x2 - fudge, b.y2 + fudge);
+	GLCompat::Vertex2f(b.x1 + fudge, b.y2 + fudge);
+	GLCompat::End();
 }
 
 
@@ -2976,7 +2978,7 @@ void CGuiHandler::DrawName(const IconInfo& icon, const std::string& text, bool o
 	const float xCenter = 0.5f * (b.x1 + b.x2);
 	const float yCenter = 0.5f * (b.y1 + b.y2 + yShrink);
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	GLCompat::Color4f(1.0f, 1.0f, 1.0f, 1.0f);
 	font->glPrint(xCenter, yCenter, fontScale, (dropShadows ? FONT_SHADOW : 0) | FONT_CENTER | FONT_VCENTER | FONT_SCALE | FONT_NORM, text);
 }
 
@@ -3049,21 +3051,21 @@ void CGuiHandler::DrawHilightQuad(const IconInfo& icon)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	if (icon.commandsID == inCommand) {
-		glColor4f(0.3f, 0.0f, 0.0f, 1.0f);
+		GLCompat::Color4f(0.3f, 0.0f, 0.0f, 1.0f);
 	} else if (mouse->buttons[SDL_BUTTON_LEFT].pressed) {
-		glColor4f(0.2f, 0.0f, 0.0f, 1.0f);
+		GLCompat::Color4f(0.2f, 0.0f, 0.0f, 1.0f);
 	} else {
-		glColor4f(0.0f, 0.0f, 0.2f, 1.0f);
+		GLCompat::Color4f(0.0f, 0.0f, 0.2f, 1.0f);
 	}
 	const Box& b = icon.visual;
 	glDisable(GL_TEXTURE_2D);
 	glBlendFunc(GL_ONE, GL_ONE); // additive blending
-	glBegin(GL_QUADS);
-		glVertex2f(b.x1, b.y1);
-		glVertex2f(b.x2, b.y1);
-		glVertex2f(b.x2, b.y2);
-		glVertex2f(b.x1, b.y2);
-	glEnd();
+	GLCompat::Begin(GL_QUADS);
+		GLCompat::Vertex2f(b.x1, b.y1);
+		GLCompat::Vertex2f(b.x2, b.y1);
+		GLCompat::Vertex2f(b.x2, b.y2);
+		GLCompat::Vertex2f(b.x1, b.y2);
+	GLCompat::End();
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
@@ -3077,13 +3079,13 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 	// frame box
 	const float alpha = (frameAlpha < 0.0f) ? guiAlpha : frameAlpha;
 	if (alpha > 0.0f) {
-		glColor4f(0.2f, 0.2f, 0.2f, alpha);
-		glBegin(GL_QUADS);
-			glVertex2f(buttonBox.x1, buttonBox.y1);
-			glVertex2f(buttonBox.x1, buttonBox.y2);
-			glVertex2f(buttonBox.x2, buttonBox.y2);
-			glVertex2f(buttonBox.x2, buttonBox.y1);
-		glEnd();
+		GLCompat::Color4f(0.2f, 0.2f, 0.2f, alpha);
+		GLCompat::Begin(GL_QUADS);
+			GLCompat::Vertex2f(buttonBox.x1, buttonBox.y1);
+			GLCompat::Vertex2f(buttonBox.x1, buttonBox.y2);
+			GLCompat::Vertex2f(buttonBox.x2, buttonBox.y2);
+			GLCompat::Vertex2f(buttonBox.x2, buttonBox.y1);
+		GLCompat::End();
 	}
 
 	const int mouseIcon   = IconAtPos(mouse->lastx, mouse->lasty);
@@ -3145,9 +3147,9 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 				if ((cmdDesc.type == CMDTYPE_PREV) || (cmdDesc.type == CMDTYPE_NEXT)) {
 					// pick the color for the arrow
 					if (highlight) {
-						glColor4f(1.0f, 1.0f, 0.0f, 1.0f); // selected
+						GLCompat::Color4f(1.0f, 1.0f, 0.0f, 1.0f); // selected
 					} else {
-						glColor4f(0.7f, 0.7f, 0.7f, 1.0f); // normal
+						GLCompat::Color4f(0.7f, 0.7f, 0.7f, 1.0f); // normal
 					}
 					if (cmdDesc.type == CMDTYPE_PREV) {
 						DrawPrevArrow(icon);
@@ -3157,7 +3159,7 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 				}
 				else if (!usedTexture) {
 					// no texture, no arrow, ... draw a frame
-					glColor4f(1.0f, 1.0f, 1.0f, 0.1f);
+					GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.1f);
 					DrawIconFrame(icon);
 				}
 
@@ -3184,7 +3186,7 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 		if (cmdDesc.disabled) {
 			glDisable(GL_TEXTURE_2D);
 			glBlendFunc(GL_DST_COLOR, GL_ZERO);
-			glColor4f(0.5f, 0.5f, 0.5f, 0.5f);
+			GLCompat::Color4f(0.5f, 0.5f, 0.5f, 0.5f);
 			const Box& vb = icon.visual;
 			glRectf(vb.x1, vb.y1, vb.x2, vb.y2);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -3193,12 +3195,12 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 		// highlight outline
 		if (highlight) {
 			if (icon.commandsID == inCommand) {
-				glColor4f(1.0f, 1.0f, 0.0f, 0.75f);
+				GLCompat::Color4f(1.0f, 1.0f, 0.0f, 0.75f);
 			} else if (mouse->buttons[SDL_BUTTON_LEFT].pressed ||
 			           mouse->buttons[SDL_BUTTON_RIGHT].pressed) {
-				glColor4f(1.0f, 0.0f, 0.0f, 0.50f);
+				GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.50f);
 			} else {
-				glColor4f(1.0f, 1.0f, 1.0f, 0.50f);
+				GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.50f);
 			}
 			glSpringLineWidth(1.49f);
 			DrawIconFrame(icon);
@@ -3209,9 +3211,9 @@ void CGuiHandler::DrawButtons() // Only called by Draw
 	// active page indicator
 	if (luaUI == NULL) {
 		if (selectedUnitsHandler.BuildIconsFirst()) {
-			glColor4fv(cmdColors.build);
+			GLCompat::Color4fv(cmdColors.build);
 		} else {
-			glColor4f(0.7f, 0.7f, 0.7f, 1.0f);
+			GLCompat::Color4f(0.7f, 0.7f, 0.7f, 1.0f);
 		}
 		const float textSize = 1.2f;
 		font->glFormat(xBpos, yBpos, textSize, FONT_CENTER | FONT_VCENTER | FONT_SCALE | FONT_NORM, "%i", activePage + 1);
@@ -3242,7 +3244,7 @@ void CGuiHandler::DrawMenuName() // Only called by drawbuttons
 	if (!outlineFonts) {
 		const float textHeight = fontScale * font->GetTextHeight(menuName) * globalRendering->pixelY;
 		glDisable(GL_TEXTURE_2D);
-		glColor4f(0.2f, 0.2f, 0.2f, guiAlpha);
+		GLCompat::Color4f(0.2f, 0.2f, 0.2f, guiAlpha);
 		glRectf(buttonBox.x1,
 		        buttonBox.y2,
 		        buttonBox.x2,
@@ -3278,12 +3280,12 @@ void CGuiHandler::DrawSelectionInfo()
 			textHeight -= textDescender;
 
 			glDisable(GL_TEXTURE_2D);
-			glColor4f(0.2f, 0.2f, 0.2f, guiAlpha);
+			GLCompat::Color4f(0.2f, 0.2f, 0.2f, guiAlpha);
 			glRectf(xSelectionPos - frameBorder,
 			        ySelectionPos - frameBorder,
 			        xSelectionPos + frameBorder + textWidth,
 			        ySelectionPos + frameBorder + textHeight);
-			glColor4f(1.0f, 1.0f, 1.0f, 0.8f);
+			GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.8f);
 			smallFont->glPrint(xSelectionPos, ySelectionPos - textDescender, fontSize, FONT_BASELINE | FONT_NORM, buf.str());
 		} else {
 			smallFont->SetColors(); // default
@@ -3303,25 +3305,25 @@ void CGuiHandler::DrawNumberInput() // Only called by drawbuttons
 		if (cd.type == CMDTYPE_NUMBER) {
 			const float value = GetNumberInput(cd);
 			glDisable(GL_TEXTURE_2D);
-			glColor4f(1.0f, 1.0f, 1.0f, 0.8f);
+			GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.8f);
 			const float mouseX = (float)mouse->lastx / (float)globalRendering->viewSizeX;
 			const float slideX = std::min(std::max(mouseX, 0.25f), 0.75f);
 			//const float mouseY = 1.0f - (float)(mouse->lasty - 16) / (float)globalRendering->viewSizeY;
-			glColor4f(1.0f, 1.0f, 0.0f, 0.8f);
+			GLCompat::Color4f(1.0f, 1.0f, 0.0f, 0.8f);
 			glRectf(0.235f, 0.45f, 0.25f, 0.55f);
 			glRectf(0.75f, 0.45f, 0.765f, 0.55f);
-			glColor4f(0.0f, 0.0f, 1.0f, 0.8f);
+			GLCompat::Color4f(0.0f, 0.0f, 1.0f, 0.8f);
 			glRectf(0.25f, 0.49f, 0.75f, 0.51f);
-			glBegin(GL_TRIANGLES);
-				glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
-				glVertex2f(slideX + 0.015f, 0.55f);
-				glVertex2f(slideX - 0.015f, 0.55f);
-				glVertex2f(slideX, 0.50f);
-				glVertex2f(slideX - 0.015f, 0.45f);
-				glVertex2f(slideX + 0.015f, 0.45f);
-				glVertex2f(slideX, 0.50f);
-			glEnd();
-			glColor4f(1.0f, 1.0f, 1.0f, 0.9f);
+			GLCompat::Begin(GL_TRIANGLES);
+				GLCompat::Color4f(1.0f, 0.0f, 0.0f, 1.0f);
+				GLCompat::Vertex2f(slideX + 0.015f, 0.55f);
+				GLCompat::Vertex2f(slideX - 0.015f, 0.55f);
+				GLCompat::Vertex2f(slideX, 0.50f);
+				GLCompat::Vertex2f(slideX - 0.015f, 0.45f);
+				GLCompat::Vertex2f(slideX + 0.015f, 0.45f);
+				GLCompat::Vertex2f(slideX, 0.50f);
+			GLCompat::End();
+			GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.9f);
 			font->glFormat(slideX, 0.56f, 2.0f, FONT_CENTER | FONT_SCALE | FONT_NORM, "%i", (int)value);
 		}
 	}
@@ -3337,13 +3339,13 @@ void CGuiHandler::DrawPrevArrow(const IconInfo& icon)
 	const float ySize = 0.125f * math::fabs(b.y2 - b.y1);
 	const float xSiz2 = 2.0f * xSize;
 	glDisable(GL_TEXTURE_2D);
-	glBegin(GL_POLYGON);
-		glVertex2f(b.x2 - xSize, yCenter - ySize);
-		glVertex2f(b.x1 + xSiz2, yCenter - ySize);
-		glVertex2f(b.x1 + xSize, yCenter);
-		glVertex2f(b.x1 + xSiz2, yCenter + ySize);
-		glVertex2f(b.x2 - xSize, yCenter + ySize);
-	glEnd();
+	GLCompat::Begin(GL_POLYGON);
+		GLCompat::Vertex2f(b.x2 - xSize, yCenter - ySize);
+		GLCompat::Vertex2f(b.x1 + xSiz2, yCenter - ySize);
+		GLCompat::Vertex2f(b.x1 + xSize, yCenter);
+		GLCompat::Vertex2f(b.x1 + xSiz2, yCenter + ySize);
+		GLCompat::Vertex2f(b.x2 - xSize, yCenter + ySize);
+	GLCompat::End();
 }
 
 
@@ -3356,13 +3358,13 @@ void CGuiHandler::DrawNextArrow(const IconInfo& icon)
 	const float ySize = 0.125f * math::fabs(b.y2 - b.y1);
 	const float xSiz2 = 2.0f * xSize;
 	glDisable(GL_TEXTURE_2D);
-	glBegin(GL_POLYGON);
-		glVertex2f(b.x1 + xSize, yCenter - ySize);
-		glVertex2f(b.x2 - xSiz2, yCenter - ySize);
-		glVertex2f(b.x2 - xSize, yCenter);
-		glVertex2f(b.x2 - xSiz2, yCenter + ySize);
-		glVertex2f(b.x1 + xSize, yCenter + ySize);
-	glEnd();
+	GLCompat::Begin(GL_POLYGON);
+		GLCompat::Vertex2f(b.x1 + xSize, yCenter - ySize);
+		GLCompat::Vertex2f(b.x2 - xSiz2, yCenter - ySize);
+		GLCompat::Vertex2f(b.x2 - xSize, yCenter);
+		GLCompat::Vertex2f(b.x2 - xSiz2, yCenter + ySize);
+		GLCompat::Vertex2f(b.x1 + xSize, yCenter + ySize);
+	GLCompat::End();
 }
 
 
@@ -3377,7 +3379,7 @@ void CGuiHandler::DrawOptionLEDs(const IconInfo& icon)
 	}
 	const int option = atoi(cmdDesc.params[0].c_str());
 
-	glLoadIdentity();
+	GLCompat::LoadIdentity();
 
 	glDisable(GL_TEXTURE_2D);
 
@@ -3389,24 +3391,24 @@ void CGuiHandler::DrawOptionLEDs(const IconInfo& icon)
 
 	for (int x = 0; x < pCount; x++) {
 		if (x != option) {
-			glColor4f(0.25f, 0.25f, 0.25f, 0.50f); // dark
+			GLCompat::Color4f(0.25f, 0.25f, 0.25f, 0.50f); // dark
 		} else {
 			if (pCount == 2) {
 				if (option == 0) {
-					glColor4f(1.0f, 0.0f, 0.0f, 0.75f); // red
+					GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.75f); // red
 				} else {
-					glColor4f(0.0f, 1.0f, 0.0f, 0.75f); // green
+					GLCompat::Color4f(0.0f, 1.0f, 0.0f, 0.75f); // green
 				}
 			} else if (pCount == 3) {
 				if (option == 0) {
-					glColor4f(1.0f, 0.0f, 0.0f, 0.75f); // red
+					GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.75f); // red
 				} else if (option == 1) {
-					glColor4f(1.0f, 1.0f, 0.0f, 0.75f); // yellow
+					GLCompat::Color4f(1.0f, 1.0f, 0.0f, 0.75f); // yellow
 				} else {
-					glColor4f(0.0f, 1.0f, 0.0f, 0.75f); // green
+					GLCompat::Color4f(0.0f, 1.0f, 0.0f, 0.75f); // green
 				}
 			} else {
-				glColor4f(0.75f, 0.75f, 0.75f, 0.75f); // light
+				GLCompat::Color4f(0.75f, 0.75f, 0.75f, 0.75f); // light
 			}
 		}
 
@@ -3416,7 +3418,7 @@ void CGuiHandler::DrawOptionLEDs(const IconInfo& icon)
 		glRectf(startx, starty, startx + xs, starty + ys);
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glColor4f(1.0f, 1.0f, 1.0f, 0.5f);
+		GLCompat::Color4f(1.0f, 1.0f, 1.0f, 0.5f);
 		glRectf(startx, starty, startx + xs, starty + ys);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
@@ -3490,14 +3492,14 @@ static inline GLuint GetConeList()
 
 	list = glGenLists(1);
 	glNewList(list, GL_COMPILE); {
-		glBegin(GL_TRIANGLE_FAN);
+		GLCompat::Begin(GL_TRIANGLE_FAN);
 		const int divs = 64;
-		glVertex3f(0.0f, 0.0f, 0.0f);
+		GLCompat::Vertex3f(0.0f, 0.0f, 0.0f);
 		for (int i = 0; i <= divs; i++) {
 			const float rad = math::TWOPI * (float)i / (float)divs;
-			glVertex3f(1.0f, std::sin(rad), std::cos(rad));
+			GLCompat::Vertex3f(1.0f, std::sin(rad), std::cos(rad));
 		}
-		glEnd();
+		GLCompat::End();
 	}
 	glEndList();
 	return list;
@@ -3507,29 +3509,29 @@ static inline GLuint GetConeList()
 static void DrawWeaponCone(const float3& pos, float len, float hrads, float heading, float pitch)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glPushMatrix();
+	GLCompat::PushMatrix();
 
 	const float xlen = len * std::cos(hrads);
 	const float yzlen = len * std::sin(hrads);
 
-	glTranslatef(pos.x, pos.y, pos.z);
-	glRotatef(heading * math::RAD_TO_DEG, 0.0f, 1.0f, 0.0f);
-	glRotatef(pitch   * math::RAD_TO_DEG, 0.0f, 0.0f, 1.0f);
-	glScalef(xlen, yzlen, yzlen);
+	GLCompat::Translatef(pos.x, pos.y, pos.z);
+	GLCompat::Rotatef(heading * math::RAD_TO_DEG, 0.0f, 1.0f, 0.0f);
+	GLCompat::Rotatef(pitch   * math::RAD_TO_DEG, 0.0f, 0.0f, 1.0f);
+	GLCompat::Scalef(xlen, yzlen, yzlen);
 
 	glEnable(GL_CULL_FACE);
 
 	glCullFace(GL_FRONT);
-	glColor4f(1.0f, 0.0f, 0.0f, 0.25f);
+	GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.25f);
 	glCallList(GetConeList());
 
 	glCullFace(GL_BACK);
-	glColor4f(0.0f, 1.0f, 0.0f, 0.25f);
+	GLCompat::Color4f(0.0f, 1.0f, 0.0f, 0.25f);
 	glCallList(GetConeList());
 
 	glDisable(GL_CULL_FACE);
 
-	glPopMatrix();
+	GLCompat::PopMatrix();
 }
 
 
@@ -3675,8 +3677,8 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 						if (!onMiniMap) {
 							DrawArea(innerPos, radius, color);
 						} else {
-							glColor4f(color[0], color[1], color[2], 0.5f);
-							glBegin(GL_TRIANGLE_FAN);
+							GLCompat::Color4f(color[0], color[1], color[2], 0.5f);
+							GLCompat::Begin(GL_TRIANGLE_FAN);
 
 							constexpr int divs = 256;
 							for (int i = 0; i <= divs; ++i) {
@@ -3686,7 +3688,7 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 								p.z += (fastmath::cos(radians) * radius);
 								glVertexf3(p);
 							}
-							glEnd();
+							GLCompat::End();
 						}
 					}
 				} break;
@@ -3712,13 +3714,13 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 						if (!onMiniMap) {
 							DrawSelectBox(innerPos, outerPos, tracePos);
 						} else {
-							glColor4f(1.0f, 0.0f, 0.0f, 0.5f);
-							glBegin(GL_QUADS);
-							glVertex3f(innerPos.x, 0.0f, innerPos.z);
-							glVertex3f(outerPos.x, 0.0f, innerPos.z);
-							glVertex3f(outerPos.x, 0.0f, outerPos.z);
-							glVertex3f(innerPos.x, 0.0f, outerPos.z);
-							glEnd();
+							GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.5f);
+							GLCompat::Begin(GL_QUADS);
+							GLCompat::Vertex3f(innerPos.x, 0.0f, innerPos.z);
+							GLCompat::Vertex3f(outerPos.x, 0.0f, innerPos.z);
+							GLCompat::Vertex3f(outerPos.x, 0.0f, outerPos.z);
+							GLCompat::Vertex3f(innerPos.x, 0.0f, outerPos.z);
+							GLCompat::End();
 						}
 					}
 				} break;
@@ -3885,22 +3887,22 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 					}
 
 					if (unitDrawer->ShowUnitBuildSquare(bi, buildCommands)) {
-						glColor4f(0.7f, 1.0f, 1.0f, 0.4f);
+						GLCompat::Color4f(0.7f, 1.0f, 1.0f, 0.4f);
 					} else {
-						glColor4f(1.0f, 0.5f, 0.5f, 0.4f);
+						GLCompat::Color4f(1.0f, 0.5f, 0.5f, 0.4f);
 					}
 
 					if (!onMiniMap) {
 						ScopedModelDrawerImpl<CUnitDrawer> legacy(true, false);
 
-						glPushMatrix();
-						glLoadIdentity();
+						GLCompat::PushMatrix();
+						GLCompat::LoadIdentity();
 						glTranslatef3(buildPos);
-						glRotatef(bi.buildFacing * 90.0f, 0.0f, 1.0f, 0.0f);
+						GLCompat::Rotatef(bi.buildFacing * 90.0f, 0.0f, 1.0f, 0.0f);
 
 						unitDrawer->DrawIndividualDefAlpha(bi.def, gu->myTeam, false);
 
-						glPopMatrix();
+						GLCompat::PopMatrix();
 						glBlendFunc((GLenum)cmdColors.SelectedBlendSrc(), (GLenum)cmdColors.SelectedBlendDst());
 					}
 				}
@@ -3980,32 +3982,32 @@ void CGuiHandler::DrawMiniMapMarker(const float3& cameraPos)
 	static float spinTime = 0.0f;
 	spinTime = math::fmod(spinTime + globalRendering->lastFrameTime * 0.001f, 60.0f);
 
-	glPushMatrix();
-	glTranslatef(cameraPos.x, groundLevel, cameraPos.z);
-	glRotatef(360.0f * (spinTime / 2.0f), 0.0f, 1.0f, 0.0f);
+	GLCompat::PushMatrix();
+	GLCompat::Translatef(cameraPos.x, groundLevel, cameraPos.z);
+	GLCompat::Rotatef(360.0f * (spinTime / 2.0f), 0.0f, 1.0f, 0.0f);
 
 	glEnable(GL_BLEND);
 	glShadeModel(GL_FLAT);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-	glBegin(GL_TRIANGLE_FAN);
-		                       glVertex3f(0.0f, 0.0f, 0.0f);
-		                       glVertex3f(  +w,   +h, 0.0f);
-		glColor4fv(colors[4]); glVertex3f(0.0f,   +h,   +w);
-		glColor4fv(colors[5]); glVertex3f(  -w,   +h, 0.0f);
-		glColor4fv(colors[6]); glVertex3f(0.0f,   +h,   -w);
-		glColor4fv(colors[7]); glVertex3f(  +w,   +h, 0.0f);
-	glEnd();
-	glBegin(GL_TRIANGLE_FAN);
-		                       glVertex3f(0.0f, h * 2.0f, 0.0f);
-		                       glVertex3f(  +w,   +h, 0.0f);
-		glColor4fv(colors[3]); glVertex3f(0.0f,   +h,   -w);
-		glColor4fv(colors[2]); glVertex3f(  -w,   +h, 0.0f);
-		glColor4fv(colors[1]); glVertex3f(0.0f,   +h,   +w);
-		glColor4fv(colors[0]); glVertex3f(  +w,   +h, 0.0f);
-	glEnd();
+	GLCompat::Begin(GL_TRIANGLE_FAN);
+		                       GLCompat::Vertex3f(0.0f, 0.0f, 0.0f);
+		                       GLCompat::Vertex3f(  +w,   +h, 0.0f);
+		GLCompat::Color4fv(colors[4]); GLCompat::Vertex3f(0.0f,   +h,   +w);
+		GLCompat::Color4fv(colors[5]); GLCompat::Vertex3f(  -w,   +h, 0.0f);
+		GLCompat::Color4fv(colors[6]); GLCompat::Vertex3f(0.0f,   +h,   -w);
+		GLCompat::Color4fv(colors[7]); GLCompat::Vertex3f(  +w,   +h, 0.0f);
+	GLCompat::End();
+	GLCompat::Begin(GL_TRIANGLE_FAN);
+		                       GLCompat::Vertex3f(0.0f, h * 2.0f, 0.0f);
+		                       GLCompat::Vertex3f(  +w,   +h, 0.0f);
+		GLCompat::Color4fv(colors[3]); GLCompat::Vertex3f(0.0f,   +h,   -w);
+		GLCompat::Color4fv(colors[2]); GLCompat::Vertex3f(  -w,   +h, 0.0f);
+		GLCompat::Color4fv(colors[1]); GLCompat::Vertex3f(0.0f,   +h,   +w);
+		GLCompat::Color4fv(colors[0]); GLCompat::Vertex3f(  +w,   +h, 0.0f);
+	GLCompat::End();
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glShadeModel(GL_SMOOTH);
-	glPopMatrix();
+	GLCompat::PopMatrix();
 }
 
 
@@ -4074,11 +4076,11 @@ void CGuiHandler::DrawArea(float3 pos, float radius, const float* color)
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f(color[0], color[1], color[2], 0.25f);
+	GLCompat::Color4f(color[0], color[1], color[2], 0.25f);
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_FOG);
-	glBegin(GL_TRIANGLE_FAN);
+	GLCompat::Begin(GL_TRIANGLE_FAN);
 		glVertexf3(pos);
 		for(int a=0;a<=40;++a){
 			float3 p(fastmath::cos(a * math::TWOPI / 40.0f) * radius, 0.0f, fastmath::sin(a * math::TWOPI / 40.0f) * radius);
@@ -4086,7 +4088,7 @@ void CGuiHandler::DrawArea(float3 pos, float radius, const float* color)
 			p.y=CGround::GetHeightAboveWater(p.x, p.z, false);
 			glVertexf3(p);
 		}
-	glEnd();
+	GLCompat::End();
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_FOG);
 }
@@ -4126,15 +4128,15 @@ void CGuiHandler::DrawFormationFrontOrder(
 		pos2.y = CGround::GetHeightAboveWater(pos2.x, pos2.z, false);
 	}
 
-	glColor4f(0.5f, 1.0f, 0.5f, 0.5f);
+	GLCompat::Color4f(0.5f, 1.0f, 0.5f, 0.5f);
 
 	if (onMinimap) {
 		pos1 += (pos1 - pos2);
 		glSpringLineWidth(2.0f);
-		glBegin(GL_LINES);
+		GLCompat::Begin(GL_LINES);
 		glVertexf3(pos1);
 		glVertexf3(pos2);
-		glEnd();
+		GLCompat::End();
 		return;
 	}
 
@@ -4145,7 +4147,7 @@ void CGuiHandler::DrawFormationFrontOrder(
 	{
 		// direction arrow
 		glDisable(GL_DEPTH_TEST);
-		glBegin(GL_QUADS);
+		GLCompat::Begin(GL_QUADS);
 			glVertexf3(pos1 + side * 25.0f                   );
 			glVertexf3(pos1 - side * 25.0f                   );
 			glVertexf3(pos1 - side * 25.0f + forward *  50.0f);
@@ -4155,7 +4157,7 @@ void CGuiHandler::DrawFormationFrontOrder(
 			glVertexf3(pos1 - side * 40.0f + forward *  50.0f);
 			glVertexf3(pos1 +                forward * 100.0f);
 			glVertexf3(pos1 +                forward * 100.0f);
-		glEnd();
+		GLCompat::End();
 		glEnable(GL_DEPTH_TEST);
 	}
 
@@ -4169,7 +4171,7 @@ void CGuiHandler::DrawFormationFrontOrder(
 	{
 		// vertical quad
 		glDisable(GL_FOG);
-		glBegin(GL_QUAD_STRIP);
+		GLCompat::Begin(GL_QUAD_STRIP);
 		const float3 delta = (pos2 - pos1) / (float)steps;
 		for (int i = 0; i <= steps; i++) {
 			float3 p;
@@ -4180,7 +4182,7 @@ void CGuiHandler::DrawFormationFrontOrder(
 			p.y -= 100.f; glVertexf3(p);
 			p.y += 200.f; glVertexf3(p);
 		}
-		glEnd();
+		GLCompat::End();
 		glEnable(GL_FOG);
 	}
 }
@@ -4201,31 +4203,31 @@ static void DrawBoxShape(const void* data)
 	const BoxData* boxData = static_cast<const BoxData*>(data);
 	const float3& mins = boxData->mins;
 	const float3& maxs = boxData->maxs;
-	glBegin(GL_QUADS);
+	GLCompat::Begin(GL_QUADS);
 		// the top
-		glVertex3f(mins.x, maxs.y, mins.z);
-		glVertex3f(mins.x, maxs.y, maxs.z);
-		glVertex3f(maxs.x, maxs.y, maxs.z);
-		glVertex3f(maxs.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, mins.z);
 		// the bottom
-		glVertex3f(mins.x, mins.y, mins.z);
-		glVertex3f(maxs.x, mins.y, mins.z);
-		glVertex3f(maxs.x, mins.y, maxs.z);
-		glVertex3f(mins.x, mins.y, maxs.z);
-	glEnd();
-	glBegin(GL_QUAD_STRIP);
+		GLCompat::Vertex3f(mins.x, mins.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, maxs.z);
+		GLCompat::Vertex3f(mins.x, mins.y, maxs.z);
+	GLCompat::End();
+	GLCompat::Begin(GL_QUAD_STRIP);
 		// the sides
-		glVertex3f(mins.x, maxs.y, mins.z);
-		glVertex3f(mins.x, mins.y, mins.z);
-		glVertex3f(mins.x, maxs.y, maxs.z);
-		glVertex3f(mins.x, mins.y, maxs.z);
-		glVertex3f(maxs.x, maxs.y, maxs.z);
-		glVertex3f(maxs.x, mins.y, maxs.z);
-		glVertex3f(maxs.x, maxs.y, mins.z);
-		glVertex3f(maxs.x, mins.y, mins.z);
-		glVertex3f(mins.x, maxs.y, mins.z);
-		glVertex3f(mins.x, mins.y, mins.z);
-	glEnd();
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, mins.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(mins.x, mins.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, mins.y, mins.z);
+	GLCompat::End();
 }
 
 
@@ -4240,15 +4242,15 @@ static void DrawCornerPosts(const float3& pos0, const float3& pos1)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glSpringLineWidth(2.0f);
-	glBegin(GL_LINES);
-		glColor4f(1.0f, 1.0f, 0.0f, 0.9f);
+	GLCompat::Begin(GL_LINES);
+		GLCompat::Color4f(1.0f, 1.0f, 0.0f, 0.9f);
 		glVertexf3(corner0); glVertexf3(corner0 + lineVector);
-		glColor4f(0.0f, 1.0f, 0.0f, 0.9f);
+		GLCompat::Color4f(0.0f, 1.0f, 0.0f, 0.9f);
 		glVertexf3(corner1); glVertexf3(corner1 + lineVector);
-		glColor4f(0.0f, 0.0f, 1.0f, 0.9f);
+		GLCompat::Color4f(0.0f, 0.0f, 1.0f, 0.9f);
 		glVertexf3(corner2); glVertexf3(corner2 + lineVector);
 		glVertexf3(corner3); glVertexf3(corner3 + lineVector);
-	glEnd();
+	GLCompat::End();
 	glSpringLineWidth(1.0f);
 }
 
@@ -4267,7 +4269,7 @@ static void StencilDrawSelectBox(const float3& pos0, const float3& pos1,
 
 	if (!invColorSelect) {
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		glColor4f(1.0f, 0.0f, 0.0f, 0.25f);
+		GLCompat::Color4f(1.0f, 0.0f, 0.0f, 0.25f);
 		glDrawVolume(DrawBoxShape, &boxData);
 	} else {
 		glEnable(GL_COLOR_LOGIC_OP);
@@ -4284,43 +4286,43 @@ static void StencilDrawSelectBox(const float3& pos0, const float3& pos1,
 static void FullScreenDraw()
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	glPushMatrix();
+	GLCompat::MatrixMode(GL_PROJECTION);
+	GLCompat::PushMatrix();
+	GLCompat::LoadIdentity();
+	GLCompat::MatrixMode(GL_MODELVIEW);
+	GLCompat::LoadIdentity();
+	GLCompat::PushMatrix();
 	glRectf(-1.0f, -1.0f, +1.0f, +1.0f);
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix();
+	GLCompat::MatrixMode(GL_PROJECTION);
+	GLCompat::PopMatrix();
+	GLCompat::MatrixMode(GL_MODELVIEW);
+	GLCompat::PopMatrix();
 }
 
 
 static void DrawMinMaxBox(const float3& mins, const float3& maxs)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glBegin(GL_QUADS);
+	GLCompat::Begin(GL_QUADS);
 		// the top
-		glVertex3f(mins.x, maxs.y, mins.z);
-		glVertex3f(maxs.x, maxs.y, mins.z);
-		glVertex3f(maxs.x, maxs.y, maxs.z);
-		glVertex3f(mins.x, maxs.y, maxs.z);
-	glEnd();
-	glBegin(GL_QUAD_STRIP);
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, maxs.z);
+	GLCompat::End();
+	GLCompat::Begin(GL_QUAD_STRIP);
 		// the sides
-		glVertex3f(mins.x, mins.y, mins.z);
-		glVertex3f(mins.x, maxs.y, mins.z);
-		glVertex3f(mins.x, mins.y, maxs.z);
-		glVertex3f(mins.x, maxs.y, maxs.z);
-		glVertex3f(maxs.x, mins.y, maxs.z);
-		glVertex3f(maxs.x, maxs.y, maxs.z);
-		glVertex3f(maxs.x, mins.y, mins.z);
-		glVertex3f(maxs.x, maxs.y, mins.z);
-		glVertex3f(mins.x, mins.y, mins.z);
-		glVertex3f(mins.x, maxs.y, mins.z);
-	glEnd();
+		GLCompat::Vertex3f(mins.x, mins.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, mins.y, maxs.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, maxs.z);
+		GLCompat::Vertex3f(maxs.x, mins.y, mins.z);
+		GLCompat::Vertex3f(maxs.x, maxs.y, mins.z);
+		GLCompat::Vertex3f(mins.x, mins.y, mins.z);
+		GLCompat::Vertex3f(mins.x, maxs.y, mins.z);
+	GLCompat::End();
 }
 
 
@@ -4386,31 +4388,31 @@ static void DrawCylinderShape(const void* data)
 	const CylinderData& cyl = *static_cast<const CylinderData*>(data);
 	const float step = math::TWOPI / cyl.divs;
 	int i;
-	glBegin(GL_QUAD_STRIP); // the sides
+	GLCompat::Begin(GL_QUAD_STRIP); // the sides
 	for (i = 0; i <= cyl.divs; i++) {
 		const float radians = step * float(i % cyl.divs);
 		const float x = cyl.xc + (cyl.radius * fastmath::sin(radians));
 		const float z = cyl.zc + (cyl.radius * fastmath::cos(radians));
-		glVertex3f(x, cyl.yp, z);
-		glVertex3f(x, cyl.yn, z);
+		GLCompat::Vertex3f(x, cyl.yp, z);
+		GLCompat::Vertex3f(x, cyl.yn, z);
 	}
-	glEnd();
-	glBegin(GL_TRIANGLE_FAN); // the top
+	GLCompat::End();
+	GLCompat::Begin(GL_TRIANGLE_FAN); // the top
 	for (i = 0; i < cyl.divs; i++) {
 		const float radians = step * float(i);
 		const float x = cyl.xc + (cyl.radius * fastmath::sin(radians));
 		const float z = cyl.zc + (cyl.radius * fastmath::cos(radians));
-		glVertex3f(x, cyl.yp, z);
+		GLCompat::Vertex3f(x, cyl.yp, z);
 	}
-	glEnd();
-	glBegin(GL_TRIANGLE_FAN); // the bottom
+	GLCompat::End();
+	GLCompat::Begin(GL_TRIANGLE_FAN); // the bottom
 	for (i = (cyl.divs - 1); i >= 0; i--) {
 		const float radians = step * float(i);
 		const float x = cyl.xc + (cyl.radius * fastmath::sin(radians));
 		const float z = cyl.zc + (cyl.radius * fastmath::cos(radians));
-		glVertex3f(x, cyl.yn, z);
+		GLCompat::Vertex3f(x, cyl.yn, z);
 	}
-	glEnd();
+	GLCompat::End();
 }
 
 
@@ -4430,19 +4432,19 @@ void CGuiHandler::DrawSelectCircle(const float3& pos, float radius,
 	glDisable(GL_FOG);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-	glColor4f(color[0], color[1], color[2], 0.25f);
+	GLCompat::Color4f(color[0], color[1], color[2], 0.25f);
 
 	glDrawVolume(DrawCylinderShape, &cylData);
 
 	// draw the center line
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glColor4f(color[0], color[1], color[2], 0.9f);
+	GLCompat::Color4f(color[0], color[1], color[2], 0.9f);
 	glSpringLineWidth(2.0f);
 	const float3 base(pos.x, CGround::GetHeightAboveWater(pos.x, pos.z, false), pos.z);
-	glBegin(GL_LINES);
+	GLCompat::Begin(GL_LINES);
 		glVertexf3(base);
 		glVertexf3(base + float3(0.0f, 128.0f, 0.0f));
-	glEnd();
+	GLCompat::End();
 	glSpringLineWidth(1.0f);
 
 	glEnable(GL_FOG);

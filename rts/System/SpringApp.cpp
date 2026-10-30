@@ -47,9 +47,11 @@
 #include "Lua/LuaVFSDownload.h"
 #include "Menu/LuaMenuController.h"
 #include "Menu/SelectMenu.h"
+#include "Rendering/Screenshot.h"
 #include "Net/GameServer.h"
 #include "Net/Protocol/NetProtocol.h" // clientNet
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GL/CompatPipeline.h"
 #include "Rendering/Fonts/FontHandler.h"
 #include "Rendering/Fonts/glFont.h"
 #include "Rendering/GL/FBO.h"
@@ -888,6 +890,10 @@ bool SpringApp::Update()
 	globalRendering->UpdateWindow();
 	globalRendering->UpdateTimer();
 
+	// a call site that pushes the emulated matrix stack without popping would
+	// otherwise corrupt every later frame; start each one from a known state
+	GLCompat::ResetMatrixState();
+
 	#if 0
 	if (activeController == nullptr)
 		return true;
@@ -902,6 +908,19 @@ bool SpringApp::Update()
 	auto lock = CLoadLock::GetUniqueLock();
 	swap = (retc && activeController != nullptr && activeController->Draw());
 	#endif
+
+	{   // TEMP harness
+		static int frameNo = 0;
+		++frameNo;
+		if (const char* e = getenv("SPRING_DBG_SHOT")) {
+			char needle[32]; snprintf(needle, sizeof(needle), ",%d,", frameNo);
+			if ((std::string(",") + e + ",").find(needle) != std::string::npos) {
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				glReadBuffer(GL_BACK);
+				TakeScreenshot("png", 0);
+			}
+		}
+	}
 
 	// always swap by default, not doing so can upset some drivers
 	globalRendering->SwapBuffers(swap, false);
