@@ -38,8 +38,16 @@ static void ExtractGlslExtensions(std::string* src, std::string* extensions)
 
 	for (size_t pos = src->find("#extension "); pos != std::string::npos; pos = src->find("#extension ", pos)) {
 		// only hoist directives that start their line, not ones inside a comment
-		// or a string further along
-		if (pos > 0 && (*src)[pos - 1] != '\n') {
+		// or a string further along. A directive is routinely indented - inside
+		// an #ifdef, or just because the whole shader is written inside a Lua
+		// long-string - so walk back over the leading whitespace first; matching
+		// at column 0 alone silently left those below the prelude.
+		size_t sol = pos;
+
+		while (sol > 0 && ((*src)[sol - 1] == ' ' || (*src)[sol - 1] == '\t'))
+			sol -= 1;
+
+		if (sol > 0 && (*src)[sol - 1] != '\n') {
 			pos += 1;
 			continue;
 		}
@@ -47,7 +55,8 @@ static void ExtractGlslExtensions(std::string* src, std::string* extensions)
 		const auto eol = std::min(src->find('\n', pos) + 1, src->size());
 
 		*extensions += src->substr(pos, eol - pos);
-		src->erase(pos, eol - pos);
+		src->erase(sol, eol - sol);
+		pos = sol;
 	}
 }
 
