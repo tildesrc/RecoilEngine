@@ -1727,6 +1727,15 @@ bool CUnitDrawerGLSL::ShowUnitBuildSquare(const BuildInfo& buildInfo, const std:
 
 	sh.Enable();
 
+	// This geometry is in world space, but transformMatrix is a persistent
+	// uniform on a shader shared with every other VA_TYPE_C call site - including
+	// screen-space ones that leave a 0..1 ortho in it. Set the camera's
+	// view-projection explicitly rather than inheriting whatever drew last.
+	if (globalRenderingInfo.glContextIsCore) {
+		if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
+			sh.SetUniformMatrix4x4("transformMatrix", false, &cam->GetViewProjectionMatrix().m[0]);
+	}
+
 	const auto* buildColor = canBuild ? &buildColorT : &buildColorF;
 	const int numX = buildInfo.GetXSize();
 	const int numZ = buildInfo.GetZSize();

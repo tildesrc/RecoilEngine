@@ -16,6 +16,7 @@
 #include "System/type2.h"
 #include "System/UnorderedMap.hpp"
 
+#include "Rendering/GL/CompatPipeline.h"
 #include "glStateDebug.h"
 #include "glDebugGroup.hpp"
 
@@ -44,11 +45,15 @@ struct TextureParameters {
 	GLboolean isCompressed;
 };
 
-static inline void glVertexf3(const float3& v)    { glVertex3f(v.r, v.g, v.b); }
-static inline void glColorf3(const float3& v)     { glColor3f(v.r, v.g, v.b); }
-static inline void glColorf4(const float4& v)     { glColor4f(v.r, v.g, v.b, v.a); }
-static inline void glTranslatef3(const float3& v) { glTranslatef(v.r, v.g, v.b); }
-static inline void glColorf4(const float3& v, const float alpha) { glColor4f(v.r, v.g, v.b, alpha); }
+// These wrap calls a core profile removed, so they route through the software
+// pipeline for the same reason the raw spellings do. Converting a call site by
+// name misses them - they are why gl.Translate and vertex emission went on
+// quietly doing nothing at sites that looked converted.
+static inline void glVertexf3(const float3& v)    { GLCompat::Vertex(v.r, v.g, v.b); }
+static inline void glColorf3(const float3& v)     { GLCompat::Color(v.r, v.g, v.b, 1.0f); }
+static inline void glColorf4(const float4& v)     { GLCompat::Color(v.r, v.g, v.b, v.a); }
+static inline void glTranslatef3(const float3& v) { GLCompat::Translatef(v.r, v.g, v.b); }
+static inline void glColorf4(const float3& v, const float alpha) { GLCompat::Color(v.r, v.g, v.b, alpha); }
 
 typedef   void   (*   glOrthoFuncPtr) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble near, GLdouble far);
 typedef   void   (*gluOrtho2DFuncPtr) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top);
