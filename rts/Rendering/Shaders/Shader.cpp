@@ -345,6 +345,56 @@ namespace Shader {
 		return hash;
 	}
 
+	// Shared with Lua-created shaders (LuaShaders.cpp), which otherwise reach
+	// the driver as raw source: a game's GLSL is typically written against the
+	// compatibility profile and fails on a core one with "#version required and
+	// missing" or "'varying' : syntax error".
+	//
+	// Normalises the version line of <srcStr> (removing it from the source, since
+	// nothing may precede it) and returns the preamble to put in front: version,
+	// then any hoisted #extension directives, then the prelude that aliases the
+	// removed builtins. Outside a core profile this returns just the version line
+	// the source already had, leaving behaviour unchanged.
+	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr)
+	{
+		RECOIL_DETAILED_TRACY_ZONE;
+
+		std::string versionStr;
+		ExtractGlslVersion(&srcStr, &versionStr);
+
+		if (!globalRenderingInfo.glContextIsCore) {
+			if (!versionStr.empty())
+				EnsureEndsWith(&versionStr, "\n");
+
+			return versionStr;
+		}
+
+		if (!versionStr.empty()) {
+			int verNum = 0;
+
+			// below 1.40 is rejected outright, as is the "compatibility" token;
+			// re-emitting just the number drops it and defaults to core
+			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0)
+				versionStr = "#version " + IntToString((verNum < 140) ? 150 : verNum);
+		} else {
+			// a core profile requires an explicit #version
+			versionStr = "#version 150";
+		}
+
+		std::string prelude = GetGlslCompatPrelude(type, srcStr);
+		std::string extensionsStr;
+
+		// #extension must precede any non-preprocessor token, so it cannot stay
+		// below the prelude's declarations
+		if (!prelude.empty())
+			ExtractGlslExtensions(&srcStr, &extensionsStr);
+
+		EnsureEndsWith(&versionStr, "\n");
+		if (!extensionsStr.empty()) EnsureEndsWith(&extensionsStr, "\n");
+
+		return versionStr + extensionsStr + prelude;
+	}
+
 	std::string IShaderObject::GetShaderSource(const std::string& fileName)
 	{
 		if (fileName.find("void main()") != std::string::npos)

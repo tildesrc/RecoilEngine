@@ -3,6 +3,8 @@
 
 #include "LuaShaders.h"
 
+#include "Rendering/Shaders/Shader.h"
+
 #include "lib/sol2/sol.hpp"
 
 #include "LuaInclude.h"
@@ -425,12 +427,24 @@ namespace {
 			return 0;
 		}
 
-		std::vector<const GLchar*> text(defs.size() + sources.size());
+		// A game's shaders are typically written against the compatibility
+		// profile, and until now reached the driver untouched - so on a core
+		// context every one of them failed on its version line or on "varying".
+		// Put them through the same normalisation the engine's own shaders get.
+		std::string srcStr;
+		for (const std::string& src: sources)
+			srcStr += src;
 
-		for (uint32_t i = 0; i < defs.size(); i++)
-			text[i] = defs[i].c_str();
-		for (uint32_t i = 0; i < sources.size(); i++)
-			text[defs.size() + i] = sources[i].c_str();
+		std::string preamble = Shader::BuildGlslCompatPreamble(type, srcStr);
+
+		std::vector<const GLchar*> text;
+		text.reserve(defs.size() + 3);
+
+		text.push_back(preamble.c_str());
+		for (const std::string& def: defs)
+			text.push_back(def.c_str());
+		text.push_back("\n#line 1\n");
+		text.push_back(srcStr.c_str());
 
 		glShaderSource(obj, text.size(), &text[0], nullptr);
 		glCompileShader(obj);

@@ -27,6 +27,14 @@ struct fast_hash
 
 namespace Shader {
 
+	// Normalises a raw GLSL source for the current context and returns the
+	// preamble to compile ahead of it (version, hoisted #extension lines, and
+	// the core-profile compatibility prelude). Removes the #version from
+	// <srcStr>, which must therefore be compiled after the returned string.
+	// Outside a core profile this just hands back the source's own version line.
+	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr);
+
+
 	// Fixed attribute locations for the vertex inputs the core-profile
 	// compatibility prelude substitutes for gl_Vertex and friends (see
 	// GetGlslCompatPrelude). A core profile has no fixed-function vertex
