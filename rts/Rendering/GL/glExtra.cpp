@@ -2,6 +2,9 @@
 
 
 #include "glExtra.h"
+#include "Rendering/Shaders/Shader.h"
+#include "Game/CameraHandler.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "RenderBuffers.h"
 #include "VertexArray.h"
 
@@ -14,6 +17,22 @@
 
 #include "System/Misc/TracyDefs.h"
 
+
+namespace {
+	// transformMatrix is a persistent uniform shared by every call site using a
+	// given vertex type, so world-space geometry has to state its transform
+	// rather than inherit whatever drew last - a screen-space site leaves a
+	// 0..1 ortho in it. No-op outside a core profile, where the shaders still
+	// read gl_ModelViewProjectionMatrix.
+	void SetWorldTransform(Shader::IProgramObject& sh)
+	{
+		if (!globalRenderingInfo.glContextIsCore)
+			return;
+
+		if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
+			sh.SetUniformMatrix4x4("transformMatrix", false, &cam->GetViewProjectionMatrix().m[0]);
+	}
+}
 
 /**
  *  Draws a trigonometric circle in 'resolution' steps.
@@ -50,6 +69,7 @@ void glSurfaceCircle(const float3& center, float radius, const SColor& col, uint
 	glSurfaceCircleImpl(center, radius, col, res, addFunc);
 
 	sh.Enable();
+	SetWorldTransform(sh);
 	sh.SetUniform("ucolor", fColor.x, fColor.y, fColor.z, fColor.w);
 	rb.DrawArrays(GL_LINE_LOOP);
 	sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
@@ -161,6 +181,7 @@ void glBallisticCircle(const CWeapon* weapon, const WeaponDef* weaponDef, const 
 
 	auto& sh = rb.GetShader();
 	sh.Enable();
+	SetWorldTransform(sh);
 	sh.SetUniform("ucolor", fColor.x, fColor.y, fColor.z, fColor.w);
 	rb.DrawArrays(GL_LINE_LOOP);
 	sh.SetUniform("ucolor", 1.0f, 1.0f, 1.0f, 1.0f);
