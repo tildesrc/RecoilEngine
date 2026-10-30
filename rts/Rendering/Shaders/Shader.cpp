@@ -103,7 +103,13 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 		"	float constantAttenuation; float linearAttenuation; float quadraticAttenuation;\n"
 		"};\n"
 		"uniform spring_LightSourceParameters spring_LightSource[8];\n"
-		"#define gl_LightSource spring_LightSource\n";
+		"#define gl_LightSource spring_LightSource\n"
+		// identity unless something feeds it; games mostly use it for
+		// projected-texture lookups they also compute themselves
+		"uniform mat4 spring_TextureMatrix[8];\n"
+		"#define gl_TextureMatrix spring_TextureMatrix\n"
+		"uniform vec4 spring_TextureEnvColor[8];\n"
+		"#define gl_TextureEnvColor spring_TextureEnvColor\n";
 
 	switch (type) {
 		case GL_VERTEX_SHADER: {
@@ -115,11 +121,26 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 				"in vec4 spring_Color;\n"
 				"in vec4 spring_MultiTexCoord0;\n"
 				"in vec4 spring_MultiTexCoord1;\n"
+				// 2..7 carry no data (nothing binds them), but games reference
+				// them freely and an undeclared identifier is a compile error,
+				// so declare them rather than fail the whole shader
+				"vec4 spring_MultiTexCoord2 = vec4(0.0);\n"
+				"vec4 spring_MultiTexCoord3 = vec4(0.0);\n"
+				"vec4 spring_MultiTexCoord4 = vec4(0.0);\n"
+				"vec4 spring_MultiTexCoord5 = vec4(0.0);\n"
+				"vec4 spring_MultiTexCoord6 = vec4(0.0);\n"
+				"vec4 spring_MultiTexCoord7 = vec4(0.0);\n"
 				"#define gl_Vertex spring_Vertex\n"
 				"#define gl_Normal spring_Normal\n"
 				"#define gl_Color spring_Color\n"
 				"#define gl_MultiTexCoord0 spring_MultiTexCoord0\n"
 				"#define gl_MultiTexCoord1 spring_MultiTexCoord1\n"
+				"#define gl_MultiTexCoord2 spring_MultiTexCoord2\n"
+				"#define gl_MultiTexCoord3 spring_MultiTexCoord3\n"
+				"#define gl_MultiTexCoord4 spring_MultiTexCoord4\n"
+				"#define gl_MultiTexCoord5 spring_MultiTexCoord5\n"
+				"#define gl_MultiTexCoord6 spring_MultiTexCoord6\n"
+				"#define gl_MultiTexCoord7 spring_MultiTexCoord7\n"
 				"#define ftransform() (spring_ModelViewProjectionMatrix * spring_Vertex)\n"
 				"out vec4 spring_TexCoord[8];\n"
 				"#define gl_TexCoord spring_TexCoord\n"
@@ -131,6 +152,10 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 				"#define gl_ClipVertex spring_ClipVertex\n"
 				"out vec4 spring_FrontColor;\n"
 				"#define gl_FrontColor spring_FrontColor\n"
+				"out vec4 spring_FrontSecondaryColor;\n"
+				"#define gl_FrontSecondaryColor spring_FrontSecondaryColor\n"
+				"vec4 spring_SecondaryColor = vec4(0.0);\n"
+				"#define gl_SecondaryColor spring_SecondaryColor\n"
 				"out float spring_FogFragCoord;\n"
 				"#define gl_FogFragCoord spring_FogFragCoord\n";
 		} break;
@@ -150,6 +175,8 @@ static std::string GetGlslCompatPrelude(unsigned int type, const std::string& sr
 				"#define gl_FragColor spring_FragData[0]\n";
 
 			p +=
+				"vec4 spring_SecondaryColor = vec4(0.0);\n"
+				"#define gl_SecondaryColor spring_SecondaryColor\n"
 				"in vec4 spring_FrontColor;\n"
 				"#define gl_Color spring_FrontColor\n"
 				"in float spring_FogFragCoord;\n"
@@ -355,12 +382,32 @@ namespace Shader {
 	// then any hoisted #extension directives, then the prelude that aliases the
 	// removed builtins. Outside a core profile this returns just the version line
 	// the source already had, leaving behaviour unchanged.
-	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr)
+	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr, std::string* defsStr)
 	{
 		RECOIL_DETAILED_TRACY_ZONE;
 
 		std::string versionStr;
-		ExtractGlslVersion(&srcStr, &versionStr);
+
+		// a Lua shader is assembled from several source strings, each of which
+		// may carry its own #version; only the first may survive, and it has to
+		// move to the very front
+		while (ExtractGlslVersion(&srcStr, &versionStr)) {
+			if (!versionStr.empty())
+				break;
+		}
+		{
+			std::string discard;
+			while (ExtractGlslVersion(&srcStr, &discard)) {}
+
+			// the caller's defines block may carry its own #version too, and it
+			// is compiled after the preamble where one is equally illegal
+			if (defsStr != nullptr) {
+				if (versionStr.empty())
+					ExtractGlslVersion(defsStr, &versionStr);
+
+				while (ExtractGlslVersion(defsStr, &discard)) {}
+			}
+		}
 
 		if (!globalRenderingInfo.glContextIsCore) {
 			if (!versionStr.empty())
@@ -386,8 +433,12 @@ namespace Shader {
 
 		// #extension must precede any non-preprocessor token, so it cannot stay
 		// below the prelude's declarations
-		if (!prelude.empty())
+		if (!prelude.empty()) {
 			ExtractGlslExtensions(&srcStr, &extensionsStr);
+
+			if (defsStr != nullptr)
+				ExtractGlslExtensions(defsStr, &extensionsStr);
+		}
 
 		EnsureEndsWith(&versionStr, "\n");
 		if (!extensionsStr.empty()) EnsureEndsWith(&extensionsStr, "\n");

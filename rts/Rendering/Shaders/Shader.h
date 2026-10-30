@@ -32,7 +32,7 @@ namespace Shader {
 	// the core-profile compatibility prelude). Removes the #version from
 	// <srcStr>, which must therefore be compiled after the returned string.
 	// Outside a core profile this just hands back the source's own version line.
-	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr);
+	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr, std::string* defsStr = nullptr);
 
 
 	// Fixed attribute locations for the vertex inputs the core-profile

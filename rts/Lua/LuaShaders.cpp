@@ -4,6 +4,7 @@
 #include "LuaShaders.h"
 
 #include "Rendering/Shaders/Shader.h"
+#include "Rendering/GlobalRenderingInfo.h"
 
 #include "lib/sol2/sol.hpp"
 
@@ -435,14 +436,17 @@ namespace {
 		for (const std::string& src: sources)
 			srcStr += src;
 
-		std::string preamble = Shader::BuildGlslCompatPreamble(type, srcStr);
+		std::string defsStr;
+		for (const std::string& def: defs)
+			defsStr += def;
+
+		std::string preamble = Shader::BuildGlslCompatPreamble(type, srcStr, &defsStr);
 
 		std::vector<const GLchar*> text;
-		text.reserve(defs.size() + 3);
+		text.reserve(4);
 
 		text.push_back(preamble.c_str());
-		for (const std::string& def: defs)
-			text.push_back(def.c_str());
+		text.push_back(defsStr.c_str());
 		text.push_back("\n#line 1\n");
 		text.push_back(srcStr.c_str());
 
@@ -782,8 +786,25 @@ int LuaShaders::CreateShader(lua_State* L)
 
 	glUseProgram(currentProgram);
 
-	glValidateProgram(prog);
-	glGetProgramiv(prog, GL_VALIDATE_STATUS, &validStatus);
+	// glValidateProgram reports whether the program can run against the CURRENT
+	// GL state, not whether it linked. A core profile needs a bound vertex array
+	// object to draw, so validating here - outside any draw setup - fails with
+	// "No vertex array object bound" and the program gets thrown away despite
+	// having linked cleanly. Skip it in that case, as GLSLProgramObject does.
+	bool skipValidation = false;
+
+	if (globalRenderingInfo.glContextIsCore) {
+		GLint boundVAO = 0;
+		glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &boundVAO);
+		skipValidation = (boundVAO == 0);
+	}
+
+	if (skipValidation) {
+		validStatus = GL_TRUE;
+	} else {
+		glValidateProgram(prog);
+		glGetProgramiv(prog, GL_VALIDATE_STATUS, &validStatus);
+	}
 
 	LuaShaders& shaders = CLuaHandle::GetActiveShaders(L);
 
