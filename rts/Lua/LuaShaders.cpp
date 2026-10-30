@@ -691,6 +691,24 @@ int LuaShaders::CreateShader(lua_State* L)
 
 	CLuaHandle::GetActiveShaders(L).errorLog.clear();
 
+	// A fragment-only shader is an old and common idiom: on a compatibility
+	// profile the fixed-function vertex stage still runs, transforming the
+	// vertex and handing the fragment stage its colour and texture coordinates.
+	// A core profile has no such stage, so the program either fails to link or
+	// links with the fragment shader reading a varying nothing writes (which is
+	// how LUPS's UnitPieceLights depth shader died). Supply the stage the old
+	// pipeline would have. It is written against the compatibility names so the
+	// existing prelude translates it and its matrix plumbing applies unchanged.
+	if (globalRenderingInfo.glContextIsCore && vertSrcs.empty() && !fragSrcs.empty() && computeSrcEmpty) {
+		vertSrcs.emplace_back(
+			"void main() {\n"
+			"\tgl_FrontColor = gl_Color;\n"
+			"\tgl_TexCoord[0] = gl_MultiTexCoord0;\n"
+			"\tgl_Position = ftransform();\n"
+			"}\n"
+		);
+	}
+
 	bool success;
 	const GLuint vertObj = CompileObject(L, shdrDefs, vertSrcs, GL_VERTEX_SHADER, success);
 
