@@ -186,7 +186,7 @@ void CubeMapHandler::CreateReflectionFace(unsigned int glFace, bool skyOnly)
 	RECOIL_DETAILED_TRACY_ZONE;
 	reflectionCubeFBO.AttachTexture((skyOnly? skyReflectionTexID: envReflectionTexID), glFace);
 
-	glPushAttrib(GL_FOG_BIT | GL_DEPTH_BUFFER_BIT);
+	glSpringPushAttrib(GL_FOG_BIT | GL_DEPTH_BUFFER_BIT);
 	const auto& sky = ISky::GetSky();
 	glClearColor(sky->fogColor.x, sky->fogColor.y, sky->fogColor.z, 1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -241,7 +241,7 @@ void CubeMapHandler::CreateReflectionFace(unsigned int glFace, bool skyOnly)
 		CCameraHandler::SetActiveCamera(prvCam->GetCamType());
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 

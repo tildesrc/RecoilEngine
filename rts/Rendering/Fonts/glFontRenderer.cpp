@@ -431,7 +431,7 @@ void CglNoShaderFontRenderer::HandleTextureUpdate(CFontTexture& fnt, bool onlyUp
 void CglNoShaderFontRenderer::PushGLState(const CglFont& fnt)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
 	glDisable(GL_LIGHTING);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_ALPHA_TEST);
@@ -464,7 +464,7 @@ void CglNoShaderFontRenderer::PopGLState(const CglFont& fnt)
 	glMatrixMode(GL_MODELVIEW);
 
 	glDisable(GL_TEXTURE_2D);
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void CglNoShaderFontRenderer::GetStats(std::array<size_t, 8>& stats) const

@@ -89,7 +89,7 @@ void CBasicWater::Draw()
 	if (!waterRendering->forceRendering && !readMap->HasVisibleWater())
 		return;
 
-	glPushAttrib(GL_FOG_BIT | GL_POLYGON_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_FOG_BIT | GL_POLYGON_BIT | GL_ENABLE_BIT);
 
 	glDisable(GL_ALPHA_TEST);
 	glDepthMask(GL_FALSE);
@@ -110,5 +110,5 @@ void CBasicWater::Draw()
 
 	glBindTexture(GL_TEXTURE_2D,         0);
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }

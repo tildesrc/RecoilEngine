@@ -437,7 +437,7 @@ void CShadowHandler::DrawShadowPasses()
 {
 	inShadowPass = true;
 
-	glPushAttrib(GL_POLYGON_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_POLYGON_BIT | GL_ENABLE_BIT);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
@@ -485,7 +485,7 @@ void CShadowHandler::DrawShadowPasses()
 		eventHandler.DrawShadowPassTransparent();
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	inShadowPass = false;
 }

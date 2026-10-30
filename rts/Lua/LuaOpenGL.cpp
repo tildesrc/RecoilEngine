@@ -606,7 +606,7 @@ void LuaOpenGL::EnableCommon(DrawMode mode)
 	assert(drawMode == DRAW_NONE);
 	drawMode = mode;
 	if (safeMode) {
-		glPushAttrib(AttribBits);
+		glSpringPushAttrib(AttribBits);
 		ResetGLState();
 	}
 	// FIXME  --  not needed by shadow or minimap   (use a WorldCommon ? )
@@ -622,7 +622,7 @@ void LuaOpenGL::DisableCommon(DrawMode mode)
 	glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SINGLE_COLOR);
 	drawMode = DRAW_NONE;
 	if (safeMode) {
-		glPopAttrib();
+		glSpringPopAttrib();
 	}
 	if (IS_GL_FUNCTION_AVAILABLE(glUseProgram)) {
 		glUseProgram(0);
@@ -884,7 +884,7 @@ void LuaOpenGL::DisableDrawInMiniMap()
 		DisableCommon(DRAW_MINIMAP);
 	} else {
 		if (safeMode) {
-			glPopAttrib();
+			glSpringPopAttrib();
 		} else {
 			ResetGLState();
 		}
@@ -936,7 +936,7 @@ void LuaOpenGL::DisableDrawInMiniMapBackground()
 		DisableCommon(DRAW_MINIMAP_BACKGROUND);
 	} else {
 		if (safeMode) {
-			glPopAttrib();
+			glSpringPopAttrib();
 		} else {
 			ResetGLState();
 		}
@@ -1718,7 +1718,7 @@ int LuaOpenGL::UnitCommon(lua_State* L, bool applyTransform, bool callDrawUnit)
 	const bool noLuaCall = luaL_optboolean(L, 4, !callDrawUnit);
 	const bool fullModel = luaL_optboolean(L, 5, true);
 
-	glPushAttrib(GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT);
 
 	typedef void(CUnitDrawer::*RawDrawMemFunc)(const CUnit*, unsigned int, unsigned int, bool, bool) const;
 	typedef void(CUnitDrawer::*MatDrawMemFunc)(const CUnit*, bool) const;
@@ -1744,7 +1744,7 @@ int LuaOpenGL::UnitCommon(lua_State* L, bool applyTransform, bool callDrawUnit)
 		(unit->GetLuaMaterialData())->PopLODCount();
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	return 0;
 }
 
@@ -1886,7 +1886,7 @@ int LuaOpenGL::FeatureCommon(lua_State* L, bool applyTransform, bool callDrawFea
 	const bool useLuaMat = GLObjectDrawWithLuaMat(L, feature, LUAOBJ_FEATURE);
 	const bool noLuaCall = luaL_optboolean(L, 4, !callDrawFeature);
 
-	glPushAttrib(GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT);
 
 	typedef void(CFeatureDrawer::*RawDrawMemFunc)(const CFeature*, unsigned int, unsigned int, bool, bool) const;
 	typedef void(CFeatureDrawer::*MatDrawMemFunc)(const CFeature*, bool) const;
@@ -1912,7 +1912,7 @@ int LuaOpenGL::FeatureCommon(lua_State* L, bool applyTransform, bool callDrawFea
 		(feature->GetLuaMaterialData())->PopLODCount();
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	return 0;
 }
 
@@ -4644,7 +4644,7 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 
 	glBindFramebuffer(GL_FRAMEBUFFER_EXT, tex->fbo);
 
-	glPushAttrib(GL_VIEWPORT_BIT);
+	glSpringPushAttrib(GL_VIEWPORT_BIT);
 	glViewport(0, 0, tex->xsize, tex->ysize);
 	glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
 	glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity();
@@ -4653,7 +4653,7 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 
 	glMatrixMode(GL_PROJECTION); glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);  glPopMatrix();
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 
@@ -6013,7 +6013,7 @@ int LuaOpenGL::PushAttrib(lua_State* L)
 		mask = -mask;
 		mask |= GL_ALL_ATTRIB_BITS;
 	}
-	glPushAttrib((GLbitfield)mask);
+	glSpringPushAttrib((GLbitfield)mask);
 	return 0;
 }
 
@@ -6024,7 +6024,7 @@ int LuaOpenGL::PushAttrib(lua_State* L)
 int LuaOpenGL::PopAttrib(lua_State* L)
 {
 	CheckDrawingEnabled(L, __func__);
-	glPopAttrib();
+	glSpringPopAttrib();
 	return 0;
 }
 

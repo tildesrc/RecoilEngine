@@ -118,6 +118,14 @@ unsigned int LoadFragmentProgram(const char* filename);
 // glLineWidth directly.
 void glSpringLineWidth(float width);
 
+// glPushAttrib/glPopAttrib are removed in a core profile, where they are
+// silently no-ops - so a pass that changes render state never has it restored
+// and the change leaks into every later pass. These emulate the subset of
+// server state the engine actually pushes; on a compatibility profile they
+// pass straight through to the real calls.
+void glSpringPushAttrib(GLbitfield mask);
+void glSpringPopAttrib();
+
 void glClearErrors(const char* cls, const char* fnc, bool verbose = false);
 void glSafeDeleteProgram(GLuint program);
 

@@ -564,14 +564,14 @@ void CBumpWater::UpdateWater(const CGame* game)
 	if (!waterRendering->forceRendering && !readMap->HasVisibleWater())
 		return;
 
-	glPushAttrib(GL_FOG_BIT);
+	glSpringPushAttrib(GL_FOG_BIT);
 	if (refraction > 1) DrawRefraction(game);
 	if (reflection > 0) DrawReflection(game);
 	if (reflection || refraction) {
 		FBO::Unbind();
 		globalRendering->LoadViewport();
 	}
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 
@@ -693,7 +693,7 @@ void CBumpWater::UpdateCoastmap(const bool initialize)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 	coastFBO.Bind();
-	glPushAttrib(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_ENABLE_BIT);
 
 	glDisable(GL_BLEND);
 	glDepthMask(GL_FALSE);
@@ -783,7 +783,7 @@ void CBumpWater::UpdateCoastmap(const bool initialize)
 
 	blurShader->Disable();
 	coastFBO.Detach(GL_COLOR_ATTACHMENT0_EXT);
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	// NB: not needed during init, but no reason to leave bound after ::Update
 	coastFBO.Unbind();
@@ -831,7 +831,7 @@ void CBumpWater::UpdateDynWaves(const bool initialize)
 	}
 
 	dynWavesFBO.Bind();
-	glPushAttrib(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_ENABLE_BIT);
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, normalTexture2);
 	glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
@@ -882,7 +882,7 @@ void CBumpWater::UpdateDynWaves(const bool initialize)
 		glPopMatrix();
 	globalRendering->LoadViewport();
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	dynWavesFBO.Unbind();
 
 	glBindTexture(GL_TEXTURE_2D, normalTexture);

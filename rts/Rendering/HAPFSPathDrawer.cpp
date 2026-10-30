@@ -58,14 +58,14 @@ HAPFSPathDrawer::HAPFSPathDrawer(): IPathDrawer()
 void HAPFSPathDrawer::DrawAll() const {
 	// CPathManager is not thread-safe
 	if (enabled && (gs->cheatEnabled || gu->spectating)) {
-		glPushAttrib(GL_ENABLE_BIT);
+		glSpringPushAttrib(GL_ENABLE_BIT);
 
 		Draw(); // draw paths and goals
 		Draw(pm->GetMaxResPF()); // draw PF grid-overlay
 		Draw(pm->GetMedResPE()); // draw PE grid-overlay (med-res)
 		Draw(pm->GetLowResPE()); // draw PE grid-overlay (low-res)
 
-		glPopAttrib();
+		glSpringPopAttrib();
 	}
 }
 

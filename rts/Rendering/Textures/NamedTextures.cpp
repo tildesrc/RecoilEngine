@@ -340,7 +340,7 @@ namespace CNamedTextures {
 
 		const std::lock_guard<spring::recursive_mutex> lck(mutex);
 
-		glPushAttrib(GL_TEXTURE_BIT);
+		glSpringPushAttrib(GL_TEXTURE_BIT);
 
 		for (const std::string& texString: waitingTextures) {
 			const auto mit = texInfoMap.find(texString);
@@ -351,7 +351,7 @@ namespace CNamedTextures {
 			Load(texString, texInfoVec[mit->second].id);
 		}
 
-		glPopAttrib();
+		glSpringPopAttrib();
 		waitingTextures.clear();
 	}
 

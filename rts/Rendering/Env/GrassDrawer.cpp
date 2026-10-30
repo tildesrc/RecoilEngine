@@ -564,7 +564,7 @@ void CGrassDrawer::Draw()
 	if (grassOff || !readMap->GetGrassShadingTexture())
 		return;
 
-	glPushAttrib(GL_CURRENT_BIT);
+	glSpringPushAttrib(GL_CURRENT_BIT);
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 	if (!blockDrawer.inviewGrass.empty()) {
@@ -583,7 +583,7 @@ void CGrassDrawer::Draw()
 		ResetGlStateFar();
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 

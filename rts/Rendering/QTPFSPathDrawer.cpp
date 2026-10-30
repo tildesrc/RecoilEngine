@@ -62,7 +62,7 @@ void QTPFSPathDrawer::DrawAll() const {
 	if (!gs->cheatEnabled && !gu->spectating)
 		return;
 
-	glPushAttrib(GL_ENABLE_BIT | GL_POLYGON_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT | GL_POLYGON_BIT);
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 
@@ -90,7 +90,7 @@ void QTPFSPathDrawer::DrawAll() const {
 		DrawCosts(visibleNodes);
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void QTPFSPathDrawer::DrawNodes(const MoveDef* md, TypedRenderBuffer<VA_TYPE_C>& rb, const std::vector<const QTPFS::QTNode*>& nodes, const QTPFS::NodeLayer& nodeLayer) const {

@@ -1376,7 +1376,7 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 		return;
 	}
 
-	glPushAttrib(GL_DEPTH_BUFFER_BIT);
+	glSpringPushAttrib(GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_DEPTH_TEST);
@@ -1410,7 +1410,7 @@ void CMiniMap::DrawForReal(bool useNormalizedCoors, bool updateTex, bool luaCall
 	if (useNormalizedCoors)
 		glPopMatrix();
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	glEnable(GL_TEXTURE_2D);
 
 	// allow Lua scripts to draw into the minimap
@@ -1807,7 +1807,7 @@ bool CMiniMap::RenderCachedTexture(bool useNormalizedCoors)
 	if (!renderToTexture)
 		return false;
 
-	glPushAttrib(GL_COLOR_BUFFER_BIT);
+	glSpringPushAttrib(GL_COLOR_BUFFER_BIT);
 	glBindTexture(GL_TEXTURE_2D, minimapTex);
 	glEnable(GL_TEXTURE_2D);
 	glDisable(GL_BLEND);
@@ -1853,7 +1853,7 @@ bool CMiniMap::RenderCachedTexture(bool useNormalizedCoors)
 	}
 
 	glDisable(GL_TEXTURE_2D);
-	glPopAttrib();
+	glSpringPopAttrib();
 	return true;
 }
 

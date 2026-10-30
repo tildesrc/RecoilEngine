@@ -53,7 +53,7 @@ void DebugDrawerAI::Draw() {
 	glPushMatrix();
 	glLoadIdentity();
 
-	glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT);
 
 	glDisable(GL_LIGHTING);
 	glDisable(GL_DEPTH_TEST);
@@ -63,7 +63,7 @@ void DebugDrawerAI::Draw() {
 	graphs[gu->myTeam].Draw();
 	texsets[gu->myTeam].Draw();
 
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();

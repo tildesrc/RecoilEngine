@@ -322,7 +322,7 @@ void CSMFGroundDrawer::DrawForwardPass(const DrawPass::e& drawPass, bool alphaTe
 	smfRenderStates[RENDER_STATE_SEL]->SetCurrentShader(this, drawPass);
 	smfRenderStates[RENDER_STATE_SEL]->Enable(this, drawPass);
 
-	glPushAttrib((GL_ENABLE_BIT * alphaTest) | (GL_POLYGON_BIT * wireframe));
+	glSpringPushAttrib((GL_ENABLE_BIT * alphaTest) | (GL_POLYGON_BIT * wireframe));
 
 	if (wireframe)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -337,7 +337,7 @@ void CSMFGroundDrawer::DrawForwardPass(const DrawPass::e& drawPass, bool alphaTe
 
 	meshDrawer->DrawMesh(drawPass);
 
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	smfRenderStates[RENDER_STATE_SEL]->Disable(this, drawPass);
 	smfRenderStates[RENDER_STATE_SEL]->SetCurrentShader(this, DrawPass::Normal);

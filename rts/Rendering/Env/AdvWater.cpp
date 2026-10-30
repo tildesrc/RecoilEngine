@@ -255,7 +255,7 @@ void CAdvWater::UpdateWater(const CGame* game)
 	if (!waterRendering->forceRendering && !readMap->HasVisibleWater())
 		return;
 
-	glPushAttrib(GL_FOG_BIT | GL_COLOR_BUFFER_BIT);
+	glSpringPushAttrib(GL_FOG_BIT | GL_COLOR_BUFFER_BIT);
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE, GL_ONE);
@@ -352,6 +352,6 @@ void CAdvWater::UpdateWater(const CGame* game)
 
 	FBO::Unbind();
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }

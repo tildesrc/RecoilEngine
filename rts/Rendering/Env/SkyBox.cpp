@@ -96,7 +96,7 @@ void CSkyBox::Init(uint32_t textureID, uint32_t xsize, uint32_t ysize, bool conv
 
 		valid = true;
 		{
-			glPushAttrib(GL_ENABLE_BIT | GL_VIEWPORT_BIT);
+			glSpringPushAttrib(GL_ENABLE_BIT | GL_VIEWPORT_BIT);
 
 			glViewport(0, 0, ysize, ysize);
 
@@ -148,7 +148,7 @@ void CSkyBox::Init(uint32_t textureID, uint32_t xsize, uint32_t ysize, bool conv
 			glMatrixMode(GL_MODELVIEW);
 			glPopMatrix();
 
-			glPopAttrib();
+			glSpringPopAttrib();
 
 			FBO::Unbind();
 

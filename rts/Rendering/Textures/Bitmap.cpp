@@ -1767,7 +1767,7 @@ static void HandleDDSMipmap(GLenum target, int32_t numEmbeddedLevels, uint32_t m
 uint32_t CBitmap::CreateDDSTexture(const GL::TextureCreationParams& tcp) const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
-	glPushAttrib(GL_TEXTURE_BIT);
+	glSpringPushAttrib(GL_TEXTURE_BIT);
 
 	auto texID = tcp.texID;
 
@@ -1837,7 +1837,7 @@ uint32_t CBitmap::CreateDDSTexture(const GL::TextureCreationParams& tcp) const
 			break;
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	return texID;
 }
 #else  // !HEADLESS

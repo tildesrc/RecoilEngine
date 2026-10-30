@@ -646,7 +646,7 @@ int LuaFBOs::ActiveFBO(lua_State* L)
 	if (bindTarget == 0)
 		return 0;
 
-	glPushAttrib(GL_VIEWPORT_BIT);
+	glSpringPushAttrib(GL_VIEWPORT_BIT);
 	glViewport(0, 0, fbo->xsize, fbo->ysize);
 	if (identities) {
 		glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
@@ -664,7 +664,7 @@ int LuaFBOs::ActiveFBO(lua_State* L)
 		glMatrixMode(GL_PROJECTION); glPopMatrix();
 		glMatrixMode(GL_MODELVIEW);  glPopMatrix();
 	}
-	glPopAttrib();
+	glSpringPopAttrib();
 
 	if (error != 0) {
 		LOG_L(L_ERROR, "gl.ActiveFBO: error(%i) = %s", error, lua_tostring(L, -1));

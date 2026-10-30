@@ -1325,7 +1325,7 @@ void CUnitDrawerGLSL::DrawUnitModelBeingBuiltShadow(const CUnit* unit, bool noLu
 		{0.0f,  0.0f, 0.0f,                                                           0.0f },
 	};
 
-	glPushAttrib(GL_CURRENT_BIT);
+	glSpringPushAttrib(GL_CURRENT_BIT);
 
 	glEnable(GL_CLIP_PLANE0);
 	glEnable(GL_CLIP_PLANE1);
@@ -1348,7 +1348,7 @@ void CUnitDrawerGLSL::DrawUnitModelBeingBuiltShadow(const CUnit* unit, bool noLu
 		DrawModelFillBuildStageShadow(unit, upperPlanes[BUILDSTAGE_FILL], lowerPlanes[BUILDSTAGE_FILL], noLuaCall);
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void CUnitDrawerGLSL::DrawModelWireBuildStageShadow(const CUnit* unit, const double* upperPlane, const double* lowerPlane, bool noLuaCall) const
@@ -1427,7 +1427,7 @@ void CUnitDrawerGLSL::DrawUnitModelBeingBuiltOpaque(const CUnit* unit, bool noLu
 		{0.0f,  0.0f, 0.0f,                                                           0.0f },
 	};
 
-	glPushAttrib(GL_CURRENT_BIT);
+	glSpringPushAttrib(GL_CURRENT_BIT);
 	glEnable(GL_CLIP_PLANE0);
 	glEnable(GL_CLIP_PLANE1);
 
@@ -1453,7 +1453,7 @@ void CUnitDrawerGLSL::DrawUnitModelBeingBuiltOpaque(const CUnit* unit, bool noLu
 
 	SetNanoColor(float4(1.0f, 1.0f, 1.0f, 0.0f)); // turn off in any case
 	glDisable(GL_CLIP_PLANE0);
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void CUnitDrawerGLSL::DrawModelWireBuildStageOpaque(const CUnit* unit, const double* upperPlane, const double* lowerPlane, bool noLuaCall) const
@@ -1507,7 +1507,7 @@ void CUnitDrawerGLSL::PushIndividualOpaqueState(const S3DModel* model, int teamI
 	// these are not handled by Setup*Drawing but CGame
 	// easier to assume they no longer have the correct
 	// values at this point
-	glPushAttrib(GL_DEPTH_BUFFER_BIT | GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_DEPTH_BUFFER_BIT | GL_ENABLE_BIT);
 	glDepthMask(GL_TRUE);
 	glEnable(GL_DEPTH_TEST);
 
@@ -1531,7 +1531,7 @@ void CUnitDrawerGLSL::PopIndividualOpaqueState(const S3DModel* model, int teamID
 	CModelDrawerHelper::PopModelRenderState(model);
 	ResetOpaqueDrawing(deferredPass);
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void CUnitDrawerGLSL::PopIndividualAlphaState(const S3DModel* model, int teamID, bool deferredPass) const
@@ -2249,7 +2249,7 @@ void CUnitDrawerGL4::DrawUnitModelBeingBuiltShadow(const CUnit* unit, bool noLua
 	assert(po);
 	assert(po->IsBound());
 
-	glPushAttrib(GL_POLYGON_BIT);
+	glSpringPushAttrib(GL_POLYGON_BIT);
 
 	glEnable(GL_CLIP_DISTANCE0);
 	glEnable(GL_CLIP_DISTANCE1);
@@ -2298,7 +2298,7 @@ void CUnitDrawerGL4::DrawUnitModelBeingBuiltShadow(const CUnit* unit, bool noLua
 		smv.SubmitImmediately(unit, GL_TRIANGLES);
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 void CUnitDrawerGL4::DrawUnitModelBeingBuiltOpaque(const CUnit* unit, bool noLuaCall) const
@@ -2338,7 +2338,7 @@ void CUnitDrawerGL4::DrawUnitModelBeingBuiltOpaque(const CUnit* unit, bool noLua
 		{0.0f,  0.0f, 0.0f,                                                           0.0f },
 	};
 
-	glPushAttrib(GL_POLYGON_BIT);
+	glSpringPushAttrib(GL_POLYGON_BIT);
 
 	glEnable(GL_CLIP_DISTANCE0);
 	glEnable(GL_CLIP_DISTANCE1);
@@ -2382,5 +2382,5 @@ void CUnitDrawerGL4::DrawUnitModelBeingBuiltOpaque(const CUnit* unit, bool noLua
 	modelDrawerState->SetClipPlane(0); //default
 	glDisable(GL_CLIP_DISTANCE0);
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }

@@ -741,6 +741,142 @@ void glSafeDeleteProgram(GLuint program)
 
 /******************************************************************************/
 
+namespace {
+	// The engine only ever pushes these bits; anything legacy-only (GL_CURRENT_BIT,
+	// GL_TEXTURE_BIT, GL_FOG_BIT, GL_TRANSFORM_BIT) has no server state left to
+	// save in a core profile, so it is accepted and ignored rather than refused.
+	struct SpringAttribState {
+		GLbitfield mask;
+
+		GLboolean depthTest, blend, cullFace, scissorTest, stencilTest, polyOfsFill;
+		GLboolean depthMask;
+		GLboolean colorMask[4];
+
+		GLint depthFunc, cullFaceMode, frontFace;
+		GLint polyModeFront, polyModeBack;
+		GLint blendSrcRGB, blendDstRGB, blendSrcAlpha, blendDstAlpha;
+		GLint blendEqRGB, blendEqAlpha;
+		GLint viewport[4];
+
+		GLfloat polyOfsFactor, polyOfsUnits;
+	};
+
+	// deep enough for the engine's nesting, which never goes past a few levels
+	std::array<SpringAttribState, 32> attribStack;
+	size_t attribStackDepth = 0;
+}
+
+void glSpringPushAttrib(GLbitfield mask)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	if (!globalRenderingInfo.glContextIsCore) {
+		glPushAttrib(mask);
+		return;
+	}
+
+	if (attribStackDepth >= attribStack.size()) {
+		LOG_L(L_ERROR, "[%s] attribute stack overflow (depth=%u)", __func__, uint32_t(attribStackDepth));
+		++attribStackDepth; // still count it, so the matching pop stays balanced
+		return;
+	}
+
+	SpringAttribState& st = attribStack[attribStackDepth++];
+	st.mask = mask;
+
+	if (mask & (GL_ENABLE_BIT | GL_POLYGON_BIT | GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT)) {
+		st.depthTest   = glIsEnabled(GL_DEPTH_TEST);
+		st.blend       = glIsEnabled(GL_BLEND);
+		st.cullFace    = glIsEnabled(GL_CULL_FACE);
+		st.scissorTest = glIsEnabled(GL_SCISSOR_TEST);
+		st.stencilTest = glIsEnabled(GL_STENCIL_TEST);
+		st.polyOfsFill = glIsEnabled(GL_POLYGON_OFFSET_FILL);
+	}
+
+	if (mask & (GL_POLYGON_BIT | GL_ENABLE_BIT)) {
+		GLint pm[2];
+		glGetIntegerv(GL_POLYGON_MODE, pm);
+		st.polyModeFront = pm[0];
+		st.polyModeBack  = pm[1];
+		glGetIntegerv(GL_CULL_FACE_MODE, &st.cullFaceMode);
+		glGetIntegerv(GL_FRONT_FACE, &st.frontFace);
+		glGetFloatv(GL_POLYGON_OFFSET_FACTOR, &st.polyOfsFactor);
+		glGetFloatv(GL_POLYGON_OFFSET_UNITS, &st.polyOfsUnits);
+	}
+
+	if (mask & GL_DEPTH_BUFFER_BIT) {
+		GLint dm = 0;
+		glGetIntegerv(GL_DEPTH_WRITEMASK, &dm);
+		st.depthMask = (dm != 0);
+		glGetIntegerv(GL_DEPTH_FUNC, &st.depthFunc);
+	}
+
+	if (mask & GL_COLOR_BUFFER_BIT) {
+		glGetBooleanv(GL_COLOR_WRITEMASK, st.colorMask);
+		glGetIntegerv(GL_BLEND_SRC_RGB  , &st.blendSrcRGB);
+		glGetIntegerv(GL_BLEND_DST_RGB  , &st.blendDstRGB);
+		glGetIntegerv(GL_BLEND_SRC_ALPHA, &st.blendSrcAlpha);
+		glGetIntegerv(GL_BLEND_DST_ALPHA, &st.blendDstAlpha);
+		glGetIntegerv(GL_BLEND_EQUATION_RGB  , &st.blendEqRGB);
+		glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &st.blendEqAlpha);
+	}
+
+	if (mask & GL_VIEWPORT_BIT)
+		glGetIntegerv(GL_VIEWPORT, st.viewport);
+}
+
+void glSpringPopAttrib()
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	if (!globalRenderingInfo.glContextIsCore) {
+		glPopAttrib();
+		return;
+	}
+
+	if (attribStackDepth == 0) {
+		LOG_L(L_ERROR, "[%s] attribute stack underflow", __func__);
+		return;
+	}
+
+	if (--attribStackDepth >= attribStack.size())
+		return; // was an overflowed push, nothing was saved
+
+	const SpringAttribState& st = attribStack[attribStackDepth];
+	const auto setEnabled = [](GLenum cap, GLboolean on) { if (on) glEnable(cap); else glDisable(cap); };
+
+	if (st.mask & (GL_ENABLE_BIT | GL_POLYGON_BIT | GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT)) {
+		setEnabled(GL_DEPTH_TEST          , st.depthTest);
+		setEnabled(GL_BLEND               , st.blend);
+		setEnabled(GL_CULL_FACE           , st.cullFace);
+		setEnabled(GL_SCISSOR_TEST        , st.scissorTest);
+		setEnabled(GL_STENCIL_TEST        , st.stencilTest);
+		setEnabled(GL_POLYGON_OFFSET_FILL , st.polyOfsFill);
+	}
+
+	if (st.mask & (GL_POLYGON_BIT | GL_ENABLE_BIT)) {
+		// core has no separate front/back polygon mode
+		glPolygonMode(GL_FRONT_AND_BACK, st.polyModeFront);
+		glCullFace(st.cullFaceMode);
+		glFrontFace(st.frontFace);
+		glPolygonOffset(st.polyOfsFactor, st.polyOfsUnits);
+	}
+
+	if (st.mask & GL_DEPTH_BUFFER_BIT) {
+		glDepthMask(st.depthMask);
+		glDepthFunc(st.depthFunc);
+	}
+
+	if (st.mask & GL_COLOR_BUFFER_BIT) {
+		glColorMask(st.colorMask[0], st.colorMask[1], st.colorMask[2], st.colorMask[3]);
+		glBlendFuncSeparate(st.blendSrcRGB, st.blendDstRGB, st.blendSrcAlpha, st.blendDstAlpha);
+		glBlendEquationSeparate(st.blendEqRGB, st.blendEqAlpha);
+	}
+
+	if (st.mask & GL_VIEWPORT_BIT)
+		glViewport(st.viewport[0], st.viewport[1], st.viewport[2], st.viewport[3]);
+}
+
 void glSpringLineWidth(float width)
 {
 	RECOIL_DETAILED_TRACY_ZONE;

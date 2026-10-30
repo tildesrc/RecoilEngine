@@ -2649,7 +2649,7 @@ void CGuiHandler::Draw()
 	if ((iconsCount <= 0) && (luaUI == nullptr))
 		return;
 
-	glPushAttrib(GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT);
 
 	glDisable(GL_FOG);
 	glDisable(GL_DEPTH_TEST);
@@ -2663,7 +2663,7 @@ void CGuiHandler::Draw()
 	if (iconsCount > 0)
 		DrawButtons();
 
-	glPopAttrib();
+	glSpringPopAttrib();
 }
 
 

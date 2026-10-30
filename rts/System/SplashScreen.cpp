@@ -70,7 +70,7 @@ void ShowSplashScreen(
 	rb.AssertSubmission();
 	auto& sh = rb.GetShader();
 
-	glPushAttrib(GL_ENABLE_BIT);
+	glSpringPushAttrib(GL_ENABLE_BIT);
 	glEnable(GL_TEXTURE_2D);
 
 	for (spring_time t0 = spring_now(), t1 = t0; !testDoneFunc(); t1 = spring_now()) {
@@ -113,7 +113,7 @@ void ShowSplashScreen(
 		Watchdog::ClearTimer(WDT_MAIN);
 	}
 
-	glPopAttrib();
+	glSpringPopAttrib();
 	glDeleteTextures(1, &splashTex);
 }
 #endif
