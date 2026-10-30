@@ -525,28 +525,61 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 // Keep the modelview stack in software and fold it into the transform the
 // accumulator draws with.
 namespace LuaMatrixStack {
-	static std::vector<CMatrix44f> stack = { CMatrix44f() };
+	static std::vector<CMatrix44f> mvStack   = { CMatrix44f() };
+	static std::vector<CMatrix44f> projStack = { CMatrix44f() };
+	static unsigned int mode = GL_MODELVIEW;
+	// a widget that installs its own projection owns the whole transform; the
+	// pass default must not be applied on top of it
+	static bool haveProjection = false;
 
 	bool Emulated() { return globalRenderingInfo.glContextIsCore; }
 
-	CMatrix44f& Top() { return stack.back(); }
-	const CMatrix44f& Get() { return stack.back(); }
+	static std::vector<CMatrix44f>& Cur() {
+		return (mode == GL_PROJECTION) ? projStack : mvStack;
+	}
+
+	CMatrix44f& Top() { return Cur().back(); }
+
+	const CMatrix44f& Get() {
+		// SPRING_DBG_NO_LUAMATRIX makes this layer inert, so a suspected
+		// regression in it can be bisected without a rebuild
+		static const bool disabled = (getenv("SPRING_DBG_NO_LUAMATRIX") != nullptr);
+		static const CMatrix44f identity;
+
+		return disabled ? identity : mvStack.back();
+	}
+
+	bool HasProjection() {
+		static const bool disabled = (getenv("SPRING_DBG_NO_LUAMATRIX") != nullptr);
+		return haveProjection && !disabled;
+	}
+	const CMatrix44f& GetProjection() { return projStack.back(); }
+
+	void SetMode(unsigned int m) { mode = m; }
 
 	void Push() {
-		if (stack.size() < 64)
-			stack.push_back(stack.back());
+		if (Cur().size() < 64)
+			Cur().push_back(Cur().back());
 	}
 	void Pop() {
-		if (stack.size() > 1)
-			stack.pop_back();
+		if (Cur().size() > 1)
+			Cur().pop_back();
 	}
 	void LoadIdentity() { Top() = CMatrix44f(); }
-	void Mult(const CMatrix44f& m) { Top() = Top() * m; }
-	void Load(const CMatrix44f& m) { Top() = m; }
+	void Mult(const CMatrix44f& m) {
+		Top() = Top() * m;
+		haveProjection |= (mode == GL_PROJECTION);
+	}
+	void Load(const CMatrix44f& m) {
+		Top() = m;
+		haveProjection |= (mode == GL_PROJECTION);
+	}
 
 	void Reset() {
-		stack.clear();
-		stack.emplace_back();
+		mvStack.clear();   mvStack.emplace_back();
+		projStack.clear(); projStack.emplace_back();
+		mode = GL_MODELVIEW;
+		haveProjection = false;
 	}
 }
 
@@ -570,6 +603,9 @@ CMatrix44f LuaOpenGL::GetDrawTransform()
 				transform = cam->GetViewProjectionMatrix();
 		} break;
 	}
+
+	if (LuaMatrixStack::HasProjection())
+		return LuaMatrixStack::GetProjection() * LuaMatrixStack::Get();
 
 	return transform * LuaMatrixStack::Get();
 }
@@ -5740,7 +5776,13 @@ int LuaOpenGL::Ortho(lua_State* L)
 	const float top    = luaL_checknumber(L, 4);
 	const float _near  = luaL_checknumber(L, 5);
 	const float _far   = luaL_checknumber(L, 6);
-	glOrtho(left, right, bottom, top, _near, _far);
+	if (LuaMatrixStack::Emulated()) {
+		// note the parameter order: a widget drawing with a top-left origin
+		// passes bottom > top, which is a legitimate y-down projection
+		LuaMatrixStack::Mult(CMatrix44f::ClipOrthoProj(left, right, bottom, top, _near, _far, globalRendering->supportClipSpaceControl * 1.0f));
+	} else {
+		glOrtho(left, right, bottom, top, _near, _far);
+	}
 	return 0;
 }
 
@@ -5943,7 +5985,11 @@ int LuaOpenGL::MatrixMode(lua_State* L)
 	GLenum mode = (GLenum)luaL_checkint(L, 1);
 	if (!GetLuaContextData(L)->glMatrixTracker.SetMatrixMode(mode))
 		luaL_error(L, "Incorrect value to gl.MatrixMode");
-	glMatrixMode(mode);
+
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::SetMode(mode);
+	else
+		glMatrixMode(mode);
 	return 0;
 }
 
@@ -6658,6 +6704,23 @@ int LuaOpenGL::CreateList(lua_State* L)
 			"Incorrect arguments to gl.CreateList(func [, arg1, arg2, etc ...])");
 	}
 
+	// A core profile has no display lists: glGenLists returns 0, so without
+	// this the function is never run at all and everything the caller set up
+	// inside it silently never happens. BA's UI framework puts its whole
+	// projection setup in one, which is why its panels drew mirrored.
+	//
+	// Keep the function instead of a compiled list and re-run it on CallList.
+	// That re-executes rather than replays, which is the best available
+	// equivalent once the recording machinery is gone.
+	if (globalRenderingInfo.glContextIsCore) {
+		lua_pushvalue(L, 1);
+		const int funcRef = luaL_ref(L, LUA_REGISTRYINDEX);
+
+		CLuaDisplayLists& displayLists = CLuaHandle::GetActiveDisplayLists(L);
+		lua_pushnumber(L, displayLists.NewLuaFuncList(funcRef));
+		return 1;
+	}
+
 	// generate the list id
 	const GLuint list = glGenLists(1);
 	if (list == 0) {
@@ -6706,6 +6769,28 @@ int LuaOpenGL::CallList(lua_State* L)
 	CondWarnDeprecatedGL(L, __func__);
 	const unsigned int listIndex = luaL_checkint(L, 1);
 	const CLuaDisplayLists& displayLists = CLuaHandle::GetActiveDisplayLists(L);
+
+	if (globalRenderingInfo.glContextIsCore) {
+		const int funcRef = displayLists.GetLuaFuncRef(listIndex);
+
+		if (funcRef != LUA_NOREF) {
+			lua_rawgeti(L, LUA_REGISTRYINDEX, funcRef);
+
+			if (lua_isfunction(L, -1)) {
+				const int error = lua_pcall(L, 0, 0, 0);
+
+				if (error != 0) {
+					LOG_L(L_ERROR, "gl.CallList: error(%i) = %s", error, lua_tostring(L, -1));
+					lua_pop(L, 1);
+				}
+			} else {
+				lua_pop(L, 1);
+			}
+		}
+
+		return 0;
+	}
+
 	const unsigned int dlist = displayLists.GetDList(listIndex);
 	if (dlist) {
 		SMatrixStateData matrixStateData = displayLists.GetMatrixState(listIndex);

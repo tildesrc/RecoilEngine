@@ -60,9 +60,33 @@ class CLuaDisplayLists {
 			return active.size() - 1;
 		}
 				
+		int GetLuaFuncRef(unsigned int index) const
+		{
+			if (index < active.size())
+				return active[index].luaFuncRef;
+
+			return -1; // LUA_NOREF
+		}
+
+		unsigned int NewLuaFuncList(int funcRef)
+		{
+			DLdata d(0);
+			d.luaFuncRef = funcRef;
+
+			if (!unused.empty()) {
+				const unsigned int index = unused[unused.size() - 1];
+				active[index] = d;
+				unused.pop_back();
+				return index;
+			}
+
+			active.push_back(d);
+			return active.size() - 1;
+		}
+
 		void FreeDList(unsigned int index)
 		{
-			if ((index < active.size()) && (active[index].id != 0)) {
+			if ((index < active.size()) && (active[index].id != 0 || active[index].luaFuncRef != -1)) {
 				active[index] = DLdata(0);
 				unused.push_back(index);
 			}
@@ -74,6 +98,9 @@ class CLuaDisplayLists {
 			DLdata(int i, SMatrixStateData &m): id(i), matData(m) {}
 			GLuint id;
 			SMatrixStateData matData;
+			// a core profile has no display lists, so the Lua function is kept
+			// and re-run instead of compiled (see LuaOpenGL::CreateList)
+			int luaFuncRef = -1; // LUA_NOREF
 		};
 		std::vector<DLdata> active;
 		std::vector<unsigned int> unused; // references slots in active
