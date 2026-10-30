@@ -6,6 +6,8 @@
 #include "Rendering/Shaders/ShaderHandler.h"
 #include "Rendering/Shaders/Shader.h"
 #include "Rendering/GL/SubState.h"
+#include "Rendering/GL/RenderBuffers.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Map/ReadMap.h"
 #include "System/Exceptions.h"
 #include "System/Config/ConfigHandler.h"
@@ -131,12 +133,29 @@ void CInfoTextureCombiner::Update()
 	const float isy = 2.0f * (mapDims.mapy / float(mapDims.pwr2mapy)) - 1.0f;
 
 	// need to keep this old nonsence intact to keep Lua shaders compatible
-	glBegin(GL_QUADS);
-		glTexCoord2f(0.f, 0.f); glVertex2f(-1.f, -1.f);
-		glTexCoord2f(0.f, 1.f); glVertex2f(-1.f, +isy);
-		glTexCoord2f(1.f, 1.f); glVertex2f(+isx, +isy);
-		glTexCoord2f(1.f, 0.f); glVertex2f(+isx, -1.f);
-	glEnd();
+	if (globalRenderingInfo.glContextIsCore) {
+		// immediate mode is gone, so the quad has to come from a buffer. It
+		// cannot go through GLCompat, which would enable its own shader over
+		// the info shader just bound; submit under the current program instead.
+		// VA_TYPE_T puts position and uv at the generic locations the prelude
+		// aliases gl_Vertex and gl_MultiTexCoord0 to.
+		auto& rb = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_T>();
+
+		rb.AddQuadTriangles(
+			{{-1.f, -1.f, 0.0f}, 0.f, 0.f},
+			{{-1.f, +isy, 0.0f}, 0.f, 1.f},
+			{{+isx, +isy, 0.0f}, 1.f, 1.f},
+			{{+isx, -1.f, 0.0f}, 1.f, 0.f}
+		);
+		rb.Submit(GL_TRIANGLES);
+	} else {
+		glBegin(GL_QUADS);
+			glTexCoord2f(0.f, 0.f); glVertex2f(-1.f, -1.f);
+			glTexCoord2f(0.f, 1.f); glVertex2f(-1.f, +isy);
+			glTexCoord2f(1.f, 1.f); glVertex2f(+isx, +isy);
+			glTexCoord2f(1.f, 0.f); glVertex2f(+isx, -1.f);
+		glEnd();
+	}
 
 	shader->Disable();
 	shader->UnbindTextures();
