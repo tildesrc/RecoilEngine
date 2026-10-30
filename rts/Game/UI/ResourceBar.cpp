@@ -2,6 +2,8 @@
 
 
 #include "ResourceBar.h"
+#include "System/Matrix44f.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "GuiHandler.h"
 #include "Game/GlobalUnsynced.h"
 #include "Rendering/GL/myGL.h"
@@ -122,6 +124,17 @@ void CResourceBar::Draw()
 	}
 	{
 		shader.Enable();
+
+		// the bar geometry is in the same 0..1 space as the labels below it, a
+		// space the fixed-function pipeline used to establish with glOrtho. The
+		// render buffer's transform defaults to identity, so without this the
+		// bars draw straight into clip space and no longer line up with text
+		// that is now projected correctly.
+		if (globalRenderingInfo.glContextIsCore) {
+			const CMatrix44f proj = CMatrix44f::ClipOrthoProj01();
+			shader.SetUniformMatrix4x4("transformMatrix", false, &proj.m[0]);
+		}
+
 		rb.DrawElements(GL_TRIANGLES);
 		shader.Disable();
 	}
