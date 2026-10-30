@@ -187,6 +187,16 @@ public:
 	const float3& GetFrustumEdge (uint32_t i) const { return frustum.edges [i]; }
 	const float4& GetFrustumScales() const { return frustum.scales; }
 
+	// The matrices the engine last pushed into the fixed-function state for this
+	// camera. A core profile has none, and a camera's own matrices can be
+	// replaced right after loading for a different purpose - the shadow camera
+	// swaps in its wider culling frustum immediately, and that one is never
+	// meant to be drawn with - so shaders have to be handed what was loaded,
+	// not whatever the camera holds now.
+	const CMatrix44f& GetLoadedViewMatrix() const { return haveLoadedMatrices ? loadedViewMatrix : viewMatrix; }
+	const CMatrix44f& GetLoadedProjectionMatrix() const { return haveLoadedMatrices ? loadedProjMatrix : projectionMatrix; }
+	const CMatrix44f& GetLoadedViewProjectionMatrix() const { return haveLoadedMatrices ? loadedViewProjMatrix : viewProjectionMatrix; }
+
 	void LoadMatrices() const;
 	void LoadViewport() const;
 	void UpdateLoadViewport(int px, int py, int sx, int sy);
@@ -289,6 +299,11 @@ public:
 	bool edgeMoveDynamic;
 
 private:
+	mutable CMatrix44f loadedViewMatrix;
+	mutable CMatrix44f loadedProjMatrix;
+	mutable CMatrix44f loadedViewProjMatrix;
+	mutable bool haveLoadedMatrices = false;
+
 	CMatrix44f projectionMatrix;
 	CMatrix44f projectionMatrixInverse;
 	CMatrix44f viewMatrix;

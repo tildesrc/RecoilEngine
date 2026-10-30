@@ -941,12 +941,17 @@ namespace Shader {
 		// world geometry in world space with the camera view loaded, so model is
 		// identity here. Call sites that pushed a per-object matrix need to set
 		// these themselves; those are not converted yet.
-		if (compatLocs.modelView        != -1) glUniformMatrix4fv(compatLocs.modelView       , 1, false, cam->GetViewMatrix());
-		if (compatLocs.proj             != -1) glUniformMatrix4fv(compatLocs.proj            , 1, false, cam->GetProjectionMatrix());
-		if (compatLocs.modelViewProj    != -1) glUniformMatrix4fv(compatLocs.modelViewProj   , 1, false, cam->GetViewProjectionMatrix());
-		if (compatLocs.modelViewInv     != -1) glUniformMatrix4fv(compatLocs.modelViewInv    , 1, false, cam->GetViewMatrixInverse());
-		if (compatLocs.projInv          != -1) glUniformMatrix4fv(compatLocs.projInv         , 1, false, cam->GetProjectionMatrixInverse());
-		if (compatLocs.modelViewProjInv != -1) glUniformMatrix4fv(compatLocs.modelViewProjInv, 1, false, cam->GetViewProjectionMatrixInverse());
+		// what was loaded, not what the camera holds now - see
+		// CCamera::GetLoadedViewMatrix
+		const CMatrix44f& loadedView = cam->GetLoadedViewMatrix();
+		const CMatrix44f& loadedProj = cam->GetLoadedProjectionMatrix();
+
+		if (compatLocs.modelView        != -1) glUniformMatrix4fv(compatLocs.modelView       , 1, false, loadedView);
+		if (compatLocs.proj             != -1) glUniformMatrix4fv(compatLocs.proj            , 1, false, loadedProj);
+		if (compatLocs.modelViewProj    != -1) glUniformMatrix4fv(compatLocs.modelViewProj   , 1, false, cam->GetLoadedViewProjectionMatrix());
+		if (compatLocs.modelViewInv     != -1) glUniformMatrix4fv(compatLocs.modelViewInv    , 1, false, loadedView.Invert());
+		if (compatLocs.projInv          != -1) glUniformMatrix4fv(compatLocs.projInv         , 1, false, loadedProj.Invert());
+		if (compatLocs.modelViewProjInv != -1) glUniformMatrix4fv(compatLocs.modelViewProjInv, 1, false, cam->GetLoadedViewProjectionMatrix().Invert());
 
 		// gl_Fog: mirror what ISky::SetupFog() used to push through glFog*.
 		// Leaving it unset is not harmless - the shaders compute
@@ -981,7 +986,7 @@ namespace Shader {
 		if (compatLocs.normalMat != -1) {
 			// the view matrix' upper-left 3x3 is orthonormal, so its
 			// inverse-transpose - the normal matrix - is itself
-			const CMatrix44f& v = cam->GetViewMatrix();
+			const CMatrix44f& v = cam->GetLoadedViewMatrix();
 			const float n[9] = {v[0], v[1], v[2],  v[4], v[5], v[6],  v[8], v[9], v[10]};
 
 			glUniformMatrix3fv(compatLocs.normalMat, 1, false, &n[0]);
@@ -1029,10 +1034,10 @@ namespace Shader {
 
 		// the fixed-function modelview was view * model, and a call site that
 		// pushed a per-object matrix was multiplying it onto the loaded view
-		const CMatrix44f modelView = cam->GetViewMatrix() * model;
+		const CMatrix44f modelView = cam->GetLoadedViewMatrix() * model;
 
 		if (compatLocs.modelView     != -1) glUniformMatrix4fv(compatLocs.modelView    , 1, false, modelView);
-		if (compatLocs.modelViewProj != -1) glUniformMatrix4fv(compatLocs.modelViewProj, 1, false, cam->GetProjectionMatrix() * modelView);
+		if (compatLocs.modelViewProj != -1) glUniformMatrix4fv(compatLocs.modelViewProj, 1, false, cam->GetLoadedProjectionMatrix() * modelView);
 		if (compatLocs.modelViewInv  != -1) glUniformMatrix4fv(compatLocs.modelViewInv , 1, false, modelView.Invert());
 
 		if (compatLocs.normalMat != -1) {

@@ -289,6 +289,14 @@ void CCamera::UpdateLoadViewport(int px, int py, int sx, int sy)
 void CCamera::LoadMatrices() const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
+
+	// remember what the fixed-function state is being given; on a core profile
+	// the loads below do nothing and this record is all the shaders have
+	loadedViewMatrix     = viewMatrix;
+	loadedProjMatrix     = projectionMatrix;
+	loadedViewProjMatrix = viewProjectionMatrix;
+	haveLoadedMatrices   = true;
+
 	glMatrixMode(GL_PROJECTION);
 	glLoadMatrixf(&projectionMatrix.m[0]);
 
