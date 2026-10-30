@@ -1267,6 +1267,12 @@ void LuaOpenGL::SetupScreenMatrices()
 {
 	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
 
+	// this LOADS both matrices, so a projection some widget installed earlier
+	// is wiped here - the emulated stack has to be reset for the same reason,
+	// or the first widget to install one imposes it on every later draw
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::Reset();
+
 	glMatrixMode(GL_PROJECTION);
 	glLoadMatrixf(&globalRendering->screenProjMatrix.m[0]);
 
@@ -1276,6 +1282,9 @@ void LuaOpenGL::SetupScreenMatrices()
 
 void LuaOpenGL::RevertScreenMatrices()
 {
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::Reset();
+
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); gluOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
