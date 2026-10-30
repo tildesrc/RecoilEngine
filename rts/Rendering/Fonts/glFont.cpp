@@ -680,9 +680,20 @@ void CglFont::End() {
 
 	//without this, fonts textures are empty in display lists (probably GL commands in UploadGlyphAtlasTexture are get recorded as part of the list)
 	fontRenderer->HandleTextureUpdate(*this, false);
+
+	// a string printed inside the block was neither immediate nor buffered, so
+	// nothing had supplied its projection yet - this flush is where it is drawn
+	const bool setNormXf = SetPendingNormTransform();
+
 	fontRenderer->PushGLState(*this);
 	fontRenderer->DrawTraingleElements();
 	fontRenderer->PopGLState(*this);
+
+	if (setNormXf)
+		ResetTransformMatrix();
+
+	pendingNormCount = 0;
+	pendingPixelCount = 0;
 
 	fontRenderer->SetUserDefinedBlending(false);
 
@@ -690,6 +701,23 @@ void CglFont::End() {
 	sync.Unlock();
 }
 
+
+// FONT_NORM keeps the glyphs in 0..1 and leaves the caller to supply a matching
+// projection, which it used to do with glMatrixMode/glOrtho - a no-op in a core
+// profile. A deferred string is drawn long after that setup, so state it here
+// instead. A batch that mixes the two coordinate spaces cannot be fixed this
+// way, so only claim it when every pending string agrees.
+bool CglFont::SetPendingNormTransform()
+{
+	const bool set = globalRenderingInfo.glContextIsCore
+		&& (pendingNormCount > 0 && pendingPixelCount == 0)
+		&& !fontRenderer->HasTransformMatrix();
+
+	if (set)
+		SetTransformMatrix(CMatrix44f::ClipOrthoProj01());
+
+	return set;
+}
 
 void CglFont::DrawBuffered(bool userDefinedBlending)
 {
@@ -701,15 +729,7 @@ void CglFont::DrawBuffered(bool userDefinedBlending)
 
 	fontRenderer->SetUserDefinedBlending(userDefinedBlending);
 
-	// buffered text took the same path as an immediate print but is drawn here,
-	// long after the caller's matrix setup; supply the 0..1 projection its
-	// coordinates were written against (see glPrint)
-	const bool setNormXf = globalRenderingInfo.glContextIsCore
-		&& (bufferedNormCount > 0 && bufferedPixelCount == 0)
-		&& !fontRenderer->HasTransformMatrix();
-
-	if (setNormXf)
-		SetTransformMatrix(CMatrix44f::ClipOrthoProj01());
+	const bool setNormXf = SetPendingNormTransform();
 
 	fontRenderer->PushGLState(*this);
 	fontRenderer->DrawTraingleElements();
@@ -718,8 +738,8 @@ void CglFont::DrawBuffered(bool userDefinedBlending)
 	if (setNormXf)
 		ResetTransformMatrix();
 
-	bufferedNormCount = 0;
-	bufferedPixelCount = 0;
+	pendingNormCount = 0;
+	pendingPixelCount = 0;
 
 	fontRenderer->SetUserDefinedBlending(false);
 }
@@ -920,17 +940,16 @@ void CglFont::glPrint(float x, float y, float s, const int options, const std::s
 	const bool buffered = ((options & FONT_BUFFERED) != 0);
 	const bool immediate = (!inBeginEndBlock && !buffered);
 
-	// FONT_NORM keeps the glyphs in 0..1 and leaves the caller to supply a
-	// matching projection, which it used to do with glMatrixMode/glOrtho - a
-	// no-op in a core profile. The renderer's fallback assumes pixel
-	// coordinates, so a normalised string collapses into the screen corner
-	// without one. Remember which space the buffered glyphs are in so
-	// DrawBuffered can supply the right matrix; a batch that mixes the two
-	// cannot be fixed this way, so only claim it when every string agrees.
+	// The renderer's fallback assumes pixel coordinates, so a FONT_NORM string
+	// collapses into the screen corner unless something supplies its own
+	// projection. An immediate print can do that below, but a buffered string
+	// and one printed inside a Begin/End block are both drawn by a later flush
+	// - record which space they are in so that flush can supply the matrix
+	// (see ::SetPendingNormTransform).
 	if ((options & FONT_NORM) != 0)
-		bufferedNormCount += buffered;
+		pendingNormCount += !immediate;
 	else
-		bufferedPixelCount += buffered;
+		pendingPixelCount += !immediate;
 
 	const bool setNormXf = immediate
 		&& globalRenderingInfo.glContextIsCore

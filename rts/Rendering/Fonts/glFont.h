@@ -65,10 +65,10 @@ public:
 
 	void DrawBuffered(bool userDefinedBlending = false);
 
-	// which coordinate space the pending buffered glyphs were written in; see
-	// CglFont::glPrint and ::DrawBuffered
-	int bufferedNormCount = 0;
-	int bufferedPixelCount = 0;
+	// which coordinate space the glyphs still waiting to be drawn were written
+	// in; see CglFont::glPrint and ::SetPendingNormTransform
+	int pendingNormCount = 0;
+	int pendingPixelCount = 0;
 
 	void DrawWorldBuffered(bool userDefinedBlending = false);
 
@@ -146,6 +146,11 @@ public:
 	}
 private:
 	std::string fontPath;
+
+	// supplies the projection a FONT_NORM string was written against, for the
+	// flush that finally draws it; returns whether it was set (and so has to be
+	// reset afterwards)
+	bool SetPendingNormTransform();
 
 	bool inBeginEndBlock = false; // implies bufferMutex is locked
 	bool autoOutlineColor = false; // auto-select outline color for in-text-colorcodes
