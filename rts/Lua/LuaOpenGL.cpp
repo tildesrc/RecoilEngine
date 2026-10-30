@@ -675,15 +675,20 @@ static inline void LuaImmVertex3f(float x, float y, float z)          { if (LuaI
 static inline void LuaImmVertex4f(float x, float y, float z, float w) { if (LuaImmediate::Active()) LuaImmediate::Vertex(x, y, z);    else glVertex4f(x, y, z, w); }
 static inline void LuaImmVertex3fv(const float* v)                    { if (LuaImmediate::Active()) LuaImmediate::Vertex(v[0], v[1], v[2]); else glVertex3fv(v); }
 
-static inline void LuaImmColor4f(float r, float g, float b, float a)  { if (LuaImmediate::Active()) LuaImmediate::Color(r, g, b, a);  else glColor4f(r, g, b, a); }
-static inline void LuaImmColor3f(float r, float g, float b)           { if (LuaImmediate::Active()) LuaImmediate::Color(r, g, b, 1.0f); else glColor3f(r, g, b); }
-static inline void LuaImmColor4fv(const float* c)                     { if (LuaImmediate::Active()) LuaImmediate::Color(c[0], c[1], c[2], c[3]); else glColor4fv(c); }
+// NOTE: colour and texture coordinates are persistent GL state, and call sites
+// overwhelmingly set them BEFORE opening a begin/end block - gl.Color(1,1,1,1)
+// then gl.TexRect(...). Tracking them only while a block is open loses every
+// one of those, leaving the accumulator on whatever the last in-block call set:
+// icons drawn after a shadow pass came out multiplied by near-black.
+static inline void LuaImmColor4f(float r, float g, float b, float a)  { if (LuaImmediate::Emulated()) LuaImmediate::Color(r, g, b, a);  else glColor4f(r, g, b, a); }
+static inline void LuaImmColor3f(float r, float g, float b)           { if (LuaImmediate::Emulated()) LuaImmediate::Color(r, g, b, 1.0f); else glColor3f(r, g, b); }
+static inline void LuaImmColor4fv(const float* c)                     { if (LuaImmediate::Emulated()) LuaImmediate::Color(c[0], c[1], c[2], c[3]); else glColor4fv(c); }
 
-static inline void LuaImmTexCoord1f(float s)                              { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, 0.0f); else glTexCoord1f(s); }
-static inline void LuaImmTexCoord2f(float s, float t)                     { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord2f(s, t); }
-static inline void LuaImmTexCoord3f(float s, float t, float r)            { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord3f(s, t, r); }
-static inline void LuaImmTexCoord4f(float s, float t, float r, float q)   { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord4f(s, t, r, q); }
-static inline void LuaImmTexCoord2fv(const float* v)                      { if (LuaImmediate::Active()) LuaImmediate::TexCoord(v[0], v[1]); else glTexCoord2fv(v); }
+static inline void LuaImmTexCoord1f(float s)                              { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(s, 0.0f); else glTexCoord1f(s); }
+static inline void LuaImmTexCoord2f(float s, float t)                     { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(s, t);    else glTexCoord2f(s, t); }
+static inline void LuaImmTexCoord3f(float s, float t, float r)            { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(s, t);    else glTexCoord3f(s, t, r); }
+static inline void LuaImmTexCoord4f(float s, float t, float r, float q)   { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(s, t);    else glTexCoord4f(s, t, r, q); }
+static inline void LuaImmTexCoord2fv(const float* v)                      { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(v[0], v[1]); else glTexCoord2fv(v); }
 
 // glRectf is removed in core too; emit the same quad through the accumulator
 static inline void LuaImmRectf(float x1, float y1, float x2, float y2) {

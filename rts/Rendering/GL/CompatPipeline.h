@@ -57,6 +57,10 @@ namespace GLCompat {
 	void Color(float r, float g, float b, float a);
 	void TexCoord(float s, float t);
 
+	// the emulated glColor state, so GL_CURRENT_BIT can save and restore it
+	float4 GetCurrentColor();
+	void SetCurrentColor(const float4& c);
+
 	// spelled like the calls they replace, so converting a site is mechanical
 	inline void Vertex2f(float x, float y)                   { Vertex(x, y, 0.0f); }
 	inline void Vertex3f(float x, float y, float z)          { Vertex(x, y, z); }

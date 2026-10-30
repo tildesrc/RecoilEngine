@@ -196,16 +196,28 @@ void Vertex(float x, float y, float z)
 	immVerts.emplace_back(VA_TYPE_TC{{x, y, z}, immS, immT, immColor});
 }
 
+// colour and texture coordinates are persistent state, set before a block opens
+// as often as inside one, so track them whenever we are emulating
 void Color(float r, float g, float b, float a)
 {
-	if (!immActive) { glColor4f(r, g, b, a); return; }
+	if (!Emulated()) { glColor4f(r, g, b, a); return; }
 	immColor = SColor{r, g, b, a};
 }
 
 void TexCoord(float s, float t)
 {
-	if (!immActive) { glTexCoord2f(s, t); return; }
+	if (!Emulated()) { glTexCoord2f(s, t); return; }
 	immS = s; immT = t;
+}
+
+float4 GetCurrentColor()
+{
+	return float4(immColor.r / 255.0f, immColor.g / 255.0f, immColor.b / 255.0f, immColor.a / 255.0f);
+}
+
+void SetCurrentColor(const float4& c)
+{
+	immColor = SColor{c.x, c.y, c.z, c.w};
 }
 
 void End()

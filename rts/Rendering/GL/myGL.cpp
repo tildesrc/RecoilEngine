@@ -8,6 +8,7 @@
 #include <SDL.h>
 
 #include "myGL.h"
+#include "Rendering/GL/CompatPipeline.h"
 #include "VertexArray.h"
 #include "glxHandler.h"
 #include "Rendering/GlobalRendering.h"
@@ -759,6 +760,8 @@ namespace {
 		GLint viewport[4];
 
 		GLfloat polyOfsFactor, polyOfsUnits;
+
+		float4 curColor;
 	};
 
 	// deep enough for the engine's nesting, which never goes past a few levels
@@ -823,6 +826,13 @@ void glSpringPushAttrib(GLbitfield mask)
 
 	if (mask & GL_VIEWPORT_BIT)
 		glGetIntegerv(GL_VIEWPORT, st.viewport);
+
+	// GL_CURRENT_BIT has no server state left in core, but the emulated
+	// fixed-function colour stands in for it and callers do expect a pop to
+	// restore it - without that the colour drifts to whatever was last set and
+	// everything drawn afterwards is multiplied by it
+	if (mask & GL_CURRENT_BIT)
+		st.curColor = GLCompat::GetCurrentColor();
 }
 
 void glSpringPopAttrib()
@@ -875,6 +885,9 @@ void glSpringPopAttrib()
 
 	if (st.mask & GL_VIEWPORT_BIT)
 		glViewport(st.viewport[0], st.viewport[1], st.viewport[2], st.viewport[3]);
+
+	if (st.mask & GL_CURRENT_BIT)
+		GLCompat::SetCurrentColor(st.curColor);
 }
 
 void glSpringLineWidth(float width)
