@@ -12,6 +12,7 @@
 #include "ShaderStates.h"
 #include "Lua/LuaOpenGLUtils.h"
 #include "System/UnorderedMap.hpp"
+#include "System/Matrix44f.h"
 #include "System/StringHash.h"
 #include "System/Cpp11Compat.hpp"
 #include "Rendering/GL/VertexArrayTypes.h"
@@ -465,6 +466,10 @@ namespace Shader {
 		};
 		CompatUniformLocs compatLocs;
 
+		void UploadCompatModelMatrix(const CMatrix44f& model);
+
+		CMatrix44f compatObjMatrix;
+
 		inline static GLSLProgramObject* boundProgram = nullptr;
 
 		~GLSLProgramObject() override { Release(); }
@@ -506,6 +511,14 @@ namespace Shader {
 		static void SetBoundCompatModelMatrix(const CMatrix44f& model) {
 			if (boundProgram != nullptr)
 				boundProgram->SetCompatModelMatrix(model);
+		}
+
+		// A model's pieces carry a second transform, applied on top of the
+		// object's. The fixed-function path nested it as glPushMatrix +
+		// glMultMatrixf inside the object's own push, so combine the two here.
+		static void SetBoundCompatPieceMatrix(const CMatrix44f& piece) {
+			if (boundProgram != nullptr)
+				boundProgram->UploadCompatModelMatrix(boundProgram->compatObjMatrix * piece);
 		}
 
 		void SetUniform1i(int idx, int   v0) override;

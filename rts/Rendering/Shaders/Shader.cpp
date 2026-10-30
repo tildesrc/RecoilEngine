@@ -898,6 +898,15 @@ namespace Shader {
 	void GLSLProgramObject::SetCompatModelMatrix(const CMatrix44f& model) {
 		RECOIL_DETAILED_TRACY_ZONE;
 
+		// remember it: a per-piece matrix is multiplied onto this one, the way
+		// the fixed-function stack nested glMultMatrixf inside the object's push
+		compatObjMatrix = model;
+		UploadCompatModelMatrix(model);
+	}
+
+	void GLSLProgramObject::UploadCompatModelMatrix(const CMatrix44f& model) {
+		RECOIL_DETAILED_TRACY_ZONE;
+
 		if (!globalRenderingInfo.glContextIsCore || objID == 0)
 			return;
 

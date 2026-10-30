@@ -1,6 +1,7 @@
 #include "LocalModelPiece.hpp"
 
 #include "3DModelPiece.hpp"
+#include "Rendering/Shaders/Shader.h"
 #include "LocalModel.hpp"
 #include "Rendering/GL/myGL.h"
 #include "System/Misc/TracyDefs.h"
@@ -269,6 +270,11 @@ void LocalModelPiece::Draw() const
 
 	glPushMatrix();
 	glMultMatrixf(GetModelSpaceMatrix());
+
+	// a core profile has no matrix stack, so the push above does nothing there
+	// and every piece would draw at the model origin, collapsed onto each other
+	Shader::GLSLProgramObject::SetBoundCompatPieceMatrix(GetModelSpaceMatrix());
+
 	S3DModelHelpers::BindLegacyAttrVBOs();
 	original->DrawElements();
 	S3DModelHelpers::UnbindLegacyAttrVBOs();
@@ -286,6 +292,9 @@ void LocalModelPiece::DrawLOD(uint32_t lod) const
 
 	glPushMatrix();
 	glMultMatrixf(GetModelSpaceMatrix());
+
+	Shader::GLSLProgramObject::SetBoundCompatPieceMatrix(GetModelSpaceMatrix());
+
 	if (const auto ldl = lodDispLists[lod]; ldl == 0) {
 		S3DModelHelpers::BindLegacyAttrVBOs();
 		original->DrawElements();
