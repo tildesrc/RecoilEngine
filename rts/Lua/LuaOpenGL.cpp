@@ -636,6 +636,24 @@ static inline void LuaImmTexCoord3f(float s, float t, float r)            { if (
 static inline void LuaImmTexCoord4f(float s, float t, float r, float q)   { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord4f(s, t, r, q); }
 static inline void LuaImmTexCoord2fv(const float* v)                      { if (LuaImmediate::Active()) LuaImmediate::TexCoord(v[0], v[1]); else glTexCoord2fv(v); }
 
+// glRectf is removed in core too; emit the same quad through the accumulator
+static inline void LuaImmRectf(float x1, float y1, float x2, float y2) {
+	if (!LuaImmediate::Emulated()) {
+		glRectf(x1, y1, x2, y2);
+		return;
+	}
+
+	LuaImmediate::Begin(GL_QUADS);
+	LuaImmediate::Vertex(x1, y1, 0.0f);
+	LuaImmediate::Vertex(x2, y1, 0.0f);
+	LuaImmediate::Vertex(x2, y2, 0.0f);
+	LuaImmediate::Vertex(x1, y2, 0.0f);
+	LuaImmediate::End();
+}
+
+static inline void LuaImmBegin(GLenum mode) { if (LuaImmediate::Emulated()) LuaImmediate::Begin(mode); else glBegin(mode); }
+static inline void LuaImmEnd()               { if (LuaImmediate::Emulated()) LuaImmediate::End();        else glEnd(); }
+
 // normals are not carried by VA_TYPE_TC; drop them while emulating
 static inline void LuaImmNormal3f(float x, float y, float z) { if (!LuaImmediate::Active()) glNormal3f(x, y, z); }
 static inline void LuaImmNormal3fv(const float* v)           { if (!LuaImmediate::Active()) glNormal3fv(v); }
@@ -2414,7 +2432,7 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 			const int xit = xib + 1;
 			const float xb = xib * SQUARE_SIZE;
 			const float xt = xb + SQUARE_SIZE;
-			glBegin(GL_TRIANGLE_STRIP);
+			LuaImmBegin(GL_TRIANGLE_STRIP);
 			for (int zi = zis; zi <= zie; zi++) {
 				const int ziOff = zi * mapxi;
 				const float yb = heightmap[ziOff + xib];
@@ -2423,7 +2441,7 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 				LuaImmVertex3f(xt, yt, z);
 				LuaImmVertex3f(xb, yb, z);
 			}
-			glEnd();
+			LuaImmEnd();
 		}
 	} else {
 		const float tuStep = (tu1 - tu0) / float(xie - xis);
@@ -2437,7 +2455,7 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 			const float xt = xb + SQUARE_SIZE;
 			const float tut = tub + tuStep;
 			float tv = tv0;
-			glBegin(GL_TRIANGLE_STRIP);
+			LuaImmBegin(GL_TRIANGLE_STRIP);
 			for (int zi = zis; zi <= zie; zi++) {
 				const int ziOff = zi * mapxi;
 				const float yb = heightmap[ziOff + xib];
@@ -2449,7 +2467,7 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 				LuaImmVertex3f(xb, yb, z);
 				tv += tvStep;
 			}
-			glEnd();
+			LuaImmEnd();
 			tub += tuStep;
 		}
 	}
@@ -2562,12 +2580,7 @@ int LuaOpenGL::Shape(lua_State* L)
 
 	const GLuint type = (GLuint)luaL_checkint(L, 1);
 
-	const bool emulate = LuaImmediate::Emulated();
-
-	if (emulate)
-		LuaImmediate::Begin(type);
-	else
-		glBegin(type);
+	LuaImmBegin(type);
 
 	const int table = 2;
 	int i = 1;
@@ -2589,10 +2602,7 @@ int LuaOpenGL::Shape(lua_State* L)
 	}
 	// lua_pop(L, 1);
 
-	if (emulate)
-		LuaImmediate::End();
-	else
-		glEnd();
+	LuaImmEnd();
 
 	return 0;
 }
@@ -2622,19 +2632,11 @@ int LuaOpenGL::BeginEnd(lua_State* L)
 	}
 
 	// call the function
-	const bool emulate = LuaImmediate::Emulated();
-
-	if (emulate)
-		LuaImmediate::Begin(primMode);
-	else
-		glBegin(primMode);
+	LuaImmBegin(primMode);
 
 	const int error = lua_pcall(L, (args - 2), 0, 0);
 
-	if (emulate)
-		LuaImmediate::End();
-	else
-		glEnd();
+	LuaImmEnd();
 
 	if (error != 0) {
 		LOG_L(L_ERROR, "gl.BeginEnd: error(%i) = %s",
@@ -3065,7 +3067,7 @@ int LuaOpenGL::Rect(lua_State* L)
 	const float y1 = luaL_checkfloat(L, 2);
 	const float x2 = luaL_checkfloat(L, 3);
 	const float y2 = luaL_checkfloat(L, 4);
-	glRectf(x1, y1, x2, y2);
+	LuaImmRectf(x1, y1, x2, y2);
 	return 0;
 }
 
@@ -3120,13 +3122,13 @@ int LuaOpenGL::TexRect(lua_State* L)
 			t1 = 0.0f;
 			t2 = 1.0f;
 		}
-		glBegin(GL_QUADS); {
+		LuaImmBegin(GL_QUADS); {
 			LuaImmTexCoord2f(s1, t1); LuaImmVertex2f(x1, y1);
 			LuaImmTexCoord2f(s2, t1); LuaImmVertex2f(x2, y1);
 			LuaImmTexCoord2f(s2, t2); LuaImmVertex2f(x2, y2);
 			LuaImmTexCoord2f(s1, t2); LuaImmVertex2f(x1, y2);
 		}
-		glEnd();
+		LuaImmEnd();
 		return 0;
 	}
 
@@ -3134,13 +3136,13 @@ int LuaOpenGL::TexRect(lua_State* L)
 	const float t1 = luaL_checkfloat(L, 6);
 	const float s2 = luaL_checkfloat(L, 7);
 	const float t2 = luaL_checkfloat(L, 8);
-	glBegin(GL_QUADS); {
+	LuaImmBegin(GL_QUADS); {
 		LuaImmTexCoord2f(s1, t1); LuaImmVertex2f(x1, y1);
 		LuaImmTexCoord2f(s2, t1); LuaImmVertex2f(x2, y1);
 		LuaImmTexCoord2f(s2, t2); LuaImmVertex2f(x2, y2);
 		LuaImmTexCoord2f(s1, t2); LuaImmVertex2f(x1, y2);
 	}
-	glEnd();
+	LuaImmEnd();
 
 	return 0;
 }
