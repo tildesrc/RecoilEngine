@@ -515,6 +515,40 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 // the compatibility prelude's (see Shader::CompatAttribLoc), so a shader the
 // game bound with gl.UseShader reads them where it expects.
 //
+// The fixed-function matrix stack is gone in a core profile, so gl.PushMatrix,
+// gl.Translate, gl.Rotate, gl.Scale and gl.Billboard are all no-ops there and
+// anything Lua positions with them lands at the origin, unrotated. BA's
+// map-darkening widget is the loud example: a 1000x1000 black quad meant to sit
+// in front of the camera ends up at the world origin, across the view.
+//
+// Keep the modelview stack in software and fold it into the transform the
+// accumulator draws with.
+namespace LuaMatrixStack {
+	static std::vector<CMatrix44f> stack = { CMatrix44f() };
+
+	bool Emulated() { return globalRenderingInfo.glContextIsCore; }
+
+	CMatrix44f& Top() { return stack.back(); }
+	const CMatrix44f& Get() { return stack.back(); }
+
+	void Push() {
+		if (stack.size() < 64)
+			stack.push_back(stack.back());
+	}
+	void Pop() {
+		if (stack.size() > 1)
+			stack.pop_back();
+	}
+	void LoadIdentity() { Top() = CMatrix44f(); }
+	void Mult(const CMatrix44f& m) { Top() = Top() * m; }
+	void Load(const CMatrix44f& m) { Top() = m; }
+
+	void Reset() {
+		stack.clear();
+		stack.emplace_back();
+	}
+}
+
 namespace LuaImmediate {
 	static bool  active   = false;
 	static GLenum primMode = 0;
@@ -610,6 +644,11 @@ namespace LuaImmediate {
 					transform = cam->GetViewProjectionMatrix();
 			} break;
 		}
+
+		// whatever Lua built up with gl.Translate/Rotate/Scale/Billboard sits
+		// between the pass transform and the vertices, exactly as the
+		// fixed-function modelview would have
+		transform = transform * LuaMatrixStack::Get();
 
 		sh.Enable();
 		sh.SetUniformMatrix4x4("transformMatrix", false, &transform.m[0]);
@@ -1023,9 +1062,9 @@ void LuaOpenGL::ResetDrawScreenCommon()
 
 void LuaOpenGL::EnableDrawInMiniMap()
 {
-	glMatrixMode(GL_TEXTURE   ); glPushMatrix();
-	glMatrixMode(GL_PROJECTION); glPushMatrix();
-	glMatrixMode(GL_MODELVIEW ); glPushMatrix();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 
 	if (drawMode == DRAW_SCREEN) {
 		prevDrawMode = DRAW_SCREEN;
@@ -1053,9 +1092,9 @@ void LuaOpenGL::DisableDrawInMiniMap()
 		drawMode = DRAW_SCREEN;
 	}
 
-	glMatrixMode(GL_TEXTURE   ); glPopMatrix();
-	glMatrixMode(GL_PROJECTION); glPopMatrix();
-	glMatrixMode(GL_MODELVIEW ); glPopMatrix();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 }
 
 
@@ -1075,9 +1114,9 @@ void LuaOpenGL::ResetDrawInMiniMap()
 
 void LuaOpenGL::EnableDrawInMiniMapBackground()
 {
-	glMatrixMode(GL_TEXTURE   ); glPushMatrix();
-	glMatrixMode(GL_PROJECTION); glPushMatrix();
-	glMatrixMode(GL_MODELVIEW ); glPushMatrix();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 
 	if (drawMode == DRAW_SCREEN) {
 		prevDrawMode = DRAW_SCREEN;
@@ -1105,9 +1144,9 @@ void LuaOpenGL::DisableDrawInMiniMapBackground()
 		drawMode = DRAW_SCREEN;
 	}
 
-	glMatrixMode(GL_TEXTURE   ); glPopMatrix();
-	glMatrixMode(GL_PROJECTION); glPopMatrix();
-	glMatrixMode(GL_MODELVIEW ); glPopMatrix();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 }
 
 
@@ -1154,9 +1193,9 @@ void LuaOpenGL::SetupScreenMatrices()
 
 void LuaOpenGL::RevertScreenMatrices()
 {
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); glLoadIdentity(); gluOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
-	glMatrixMode(GL_MODELVIEW ); glLoadIdentity();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); gluOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 }
 
 
@@ -1179,7 +1218,7 @@ void LuaOpenGL::SetupScreenLighting()
 
 	// sun light -- needs the camera transformation
 	// FIXME: nobody needs FFP crap anymore, but EventHandler forces it
-	glPushMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glLoadMatrixf(camera->GetViewMatrix());
 	glLightfv(GL_LIGHT1, GL_POSITION, sky->GetLight()->GetLightDir());
 
@@ -1196,7 +1235,7 @@ void LuaOpenGL::SetupScreenLighting()
 	glLightfv(GL_LIGHT1, GL_DIFFUSE,  sunLightDiff);
 	glLightfv(GL_LIGHT1, GL_SPECULAR, sunLightSpec);
 	glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, 0);
-	glPopMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 
 	// Enable the GL lights
 	glEnable(GL_LIGHT0);
@@ -1217,32 +1256,32 @@ void LuaOpenGL::RevertScreenLighting()
 
 void LuaOpenGL::ResetGenesisMatrices()
 {
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW ); glLoadIdentity();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 }
 
 
 void LuaOpenGL::ResetWorldMatrices()
 {
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 	glMatrixMode(GL_PROJECTION); glLoadMatrixf(camera->GetProjectionMatrix());
 	glMatrixMode(GL_MODELVIEW ); glLoadMatrixf(camera->GetViewMatrix());
 }
 
 void LuaOpenGL::ResetWorldShadowMatrices()
 {
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f);
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f);
 	glMatrixMode(GL_MODELVIEW ); glLoadMatrixf(shadowHandler.GetShadowMatrixRaw());
 }
 
 
 void LuaOpenGL::ResetScreenMatrices()
 {
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW ); glLoadIdentity();
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 
 	SetupScreenMatrices();
 }
@@ -1253,9 +1292,9 @@ void LuaOpenGL::ResetMiniMapMatrices()
 	assert(minimap != nullptr);
 
 	// engine draws minimap in 0..1 range, lua uses 0..minimapSize{X,Y}
-	glMatrixMode(GL_TEXTURE   ); glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f); minimap->ApplyConstraintsMatrix();
-	glMatrixMode(GL_MODELVIEW ); glLoadIdentity(); glScalef(1.0f / minimap->GetSizeX(), 1.0f / minimap->GetSizeY(), 1.0f);
+	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f); minimap->ApplyConstraintsMatrix();
+	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glScalef(1.0f / minimap->GetSizeX(), 1.0f / minimap->GetSizeY(), 1.0f);
 }
 
 
@@ -1474,12 +1513,12 @@ int LuaOpenGL::DrawMiniMap(lua_State* L)
 
 	if (luaL_optboolean(L, 1, true)) {
 		// default transform
-		glPushMatrix();
+		LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 		glScalef(globalRendering->viewSizeX, globalRendering->viewSizeY, 1.0f);
 
 		minimap->DrawForReal(true, false, true);
 
-		glPopMatrix();
+		LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	} else {
 		// custom transform
 		minimap->DrawForReal(false, false, true);
@@ -1557,13 +1596,13 @@ int LuaOpenGL::DrawMiniMapIcons(lua_State* L)
 	params.cullMaxZ = bottom + cullMargin;
 
 	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glScalef(1.0f / (right - left), 1.0f / (bottom - top), 1.0f);
 	glTranslatef(-left, -top, 0.0f);
 
 	unitDrawer->DrawUnitMiniMapIcons(params);
 
-	glPopMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	return 0;
 }
 
@@ -2241,12 +2280,12 @@ int LuaOpenGL::DrawListAtUnit(lua_State* L)
 	                 luaL_optnumber(L,  9, 1.0f),
 	                 luaL_optnumber(L, 10, 0.0f));
 
-	glPushMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glTranslatef(drawPos.x, drawPos.y, drawPos.z);
 	glRotatef(degrees, rot.x, rot.y, rot.z);
 	glScalef(scale.x, scale.y, scale.z);
 	glCallList(dlist);
-	glPopMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 
 	return 0;
 }
@@ -2282,10 +2321,10 @@ int LuaOpenGL::DrawFuncAtUnit(lua_State* L)
 	}
 
 	// call the function
-	glPushMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glTranslatef(drawPos.x, drawPos.y, drawPos.z);
 	const int error = lua_pcall(L, (lua_gettop(L) - 3), 0, 0);
-	glPopMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 
 	if (error != 0) {
 		LOG_L(L_ERROR, "gl.DrawFuncAtUnit: error(%i) = %s", error, lua_tostring(L, -1));
@@ -4807,13 +4846,13 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 
 	glSpringPushAttrib(GL_VIEWPORT_BIT);
 	glViewport(0, 0, tex->xsize, tex->ysize);
-	glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);  glPushMatrix(); glLoadIdentity();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	glMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 
 	const int error = lua_pcall(L, lua_gettop(L) - 2, 0, 0);
 
-	glMatrixMode(GL_PROJECTION); glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);  glPopMatrix();
+	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	glSpringPopAttrib();
 
 	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
@@ -5556,7 +5595,12 @@ int LuaOpenGL::Translate(lua_State* L)
 	const float x = luaL_checkfloat(L, 1);
 	const float y = luaL_checkfloat(L, 2);
 	const float z = luaL_checkfloat(L, 3);
-	glTranslatef(x, y, z);
+
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::Mult(CMatrix44f(float3(x, y, z)));
+	else
+		glTranslatef(x, y, z);
+
 	return 0;
 }
 
@@ -5574,7 +5618,15 @@ int LuaOpenGL::Scale(lua_State* L)
 	const float x = luaL_checkfloat(L, 1);
 	const float y = luaL_checkfloat(L, 2);
 	const float z = luaL_checkfloat(L, 3);
-	glScalef(x, y, z);
+
+	if (LuaMatrixStack::Emulated()) {
+		CMatrix44f m;
+		m.Scale(float3(x, y, z));
+		LuaMatrixStack::Mult(m);
+	} else {
+		glScalef(x, y, z);
+	}
+
 	return 0;
 }
 
@@ -5594,7 +5646,15 @@ int LuaOpenGL::Rotate(lua_State* L)
 	const float x = luaL_checkfloat(L, 2);
 	const float y = luaL_checkfloat(L, 3);
 	const float z = luaL_checkfloat(L, 4);
-	glRotatef(r, x, y, z);
+
+	if (LuaMatrixStack::Emulated()) {
+		CMatrix44f m;
+		m.Rotate(-r * math::DEG_TO_RAD, float3(x, y, z).ANormalize());
+		LuaMatrixStack::Mult(m);
+	} else {
+		glRotatef(r, x, y, z);
+	}
+
 	return 0;
 }
 
@@ -5654,7 +5714,11 @@ int LuaOpenGL::Billboard(lua_State* L)
 {
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
-	glMultMatrixf(camera->GetBillBoardMatrix());
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::Mult(camera->GetBillBoardMatrix());
+	else
+		glMultMatrixf(camera->GetBillBoardMatrix());
+
 	return 0;
 }
 
@@ -5834,7 +5898,7 @@ int LuaOpenGL::LoadIdentity(lua_State* L)
 	if (args != 0) {
 		luaL_error(L, "gl.LoadIdentity takes no arguments");
 	}
-	glLoadIdentity();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 	return 0;
 }
 
@@ -5993,7 +6057,7 @@ int LuaOpenGL::PushMatrix(lua_State* L)
 
 	if (!GetLuaContextData(L)->glMatrixTracker.PushMatrix())
 		luaL_error(L, "Matrix stack overflow");
-	glPushMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 
 	return 0;
 }
@@ -6014,7 +6078,7 @@ int LuaOpenGL::PopMatrix(lua_State* L)
 
 	if (!GetLuaContextData(L)->glMatrixTracker.PopMatrix())
 		luaL_error(L, "Matrix stack underflow");
-	glPopMatrix();
+	LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 
 	return 0;
 }
@@ -6047,11 +6111,11 @@ int LuaOpenGL::PushPopMatrix(lua_State* L)
 	}
 
 	if (arg == 1) {
-		glPushMatrix();
+		LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	} else {
 		for (int i = 0; i < (int)matModes.size(); i++) {
 			glMatrixMode(matModes[i]);
-			glPushMatrix();
+			LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 		}
 	}
 
@@ -6059,11 +6123,11 @@ int LuaOpenGL::PushPopMatrix(lua_State* L)
 	const int error = lua_pcall(L, (args - arg), 0, 0);
 
 	if (arg == 1) {
-		glPopMatrix();
+		LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	} else {
 		for (int i = 0; i < (int)matModes.size(); i++) {
 			glMatrixMode(matModes[i]);
-			glPopMatrix();
+			LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 		}
 	}
 
