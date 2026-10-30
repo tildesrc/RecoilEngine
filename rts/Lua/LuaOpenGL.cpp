@@ -1829,12 +1829,18 @@ int LuaOpenGL::Text(lua_State* L)
 	// read, and its screen-space fallback assumes pixel coordinates - but a
 	// widget may have set up its own space with gl.Scale/gl.Translate. Hand it
 	// the same matrix the geometry path uses.
-	if (LuaMatrixStack::Emulated())
+	//
+	// Inside gl.BeginText/gl.EndText the glyphs are not drawn here but by the
+	// EndText flush, and BeginText already stated the transform for the whole
+	// block. Resetting it per string would leave that flush with nothing.
+	const bool setXf = LuaMatrixStack::Emulated() && !font->InBeginEndBlock();
+
+	if (setXf)
 		font->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
 
 	font->glPrint(x, y, size, options, text);
 
-	if (LuaMatrixStack::Emulated())
+	if (setXf)
 		font->ResetTransformMatrix();
 
 	return 0;

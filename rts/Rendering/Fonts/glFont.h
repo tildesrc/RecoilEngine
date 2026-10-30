@@ -63,6 +63,11 @@ public:
 	void SetTransformMatrix(const CMatrix44f& m) { fontRenderer->SetTransformMatrix(m); }
 	void ResetTransformMatrix() { fontRenderer->ResetTransformMatrix(); }
 
+	// Inside a block the glyphs are only accumulated; End() draws them. A
+	// transform belongs to the block as a whole and has to outlive each print,
+	// so a caller that sets one per string must leave it alone while this holds.
+	bool InBeginEndBlock() const { return inBeginEndBlock; }
+
 	void DrawBuffered(bool userDefinedBlending = false);
 
 	// which coordinate space the glyphs still waiting to be drawn were written

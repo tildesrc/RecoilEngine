@@ -332,7 +332,9 @@ int LuaFonts::Print(lua_State* L)
 	// see LuaOpenGL::GetDrawTransform - on a core profile the font renderer has
 	// no fixed-function modelview to read, and its screen-space fallback assumes
 	// pixel coordinates, but a widget may be drawing in its own scaled space
-	const bool setXf = globalRenderingInfo.glContextIsCore;
+	// between LuaFont:Begin and LuaFont:End the glyphs are drawn by the End
+	// flush, and Begin already stated the transform for the whole block
+	const bool setXf = globalRenderingInfo.glContextIsCore && !f->InBeginEndBlock();
 
 	if (setXf)
 		f->SetTransformMatrix(LuaOpenGL::GetDrawTransform());
