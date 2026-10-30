@@ -21,6 +21,7 @@
 #include <fmt/format.h>
 
 #include "LuaOpenGL.h"
+#include "Rendering/GL/CompatPipeline.h"
 #include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/GL/RenderBuffers.h"
 
@@ -656,8 +657,11 @@ namespace LuaImmediate {
 		Shader::IProgramObject& sh = rb.GetShader();
 		const CMatrix44f transform = LuaOpenGL::GetDrawTransform();
 
+		const float4 alphaCtrl = GLCompat::GetAlphaCtrl();
+
 		sh.Enable();
 		sh.SetUniformMatrix4x4("transformMatrix", false, &transform.m[0]);
+		sh.SetUniform4v("alphaCtrl", &alphaCtrl.x);
 		rb.Submit(mode);
 		sh.Disable();
 	}
@@ -3903,15 +3907,11 @@ int LuaOpenGL::AlphaTest(lua_State* L)
 
 	const int args = lua_gettop(L); // number of arguments
 	if (args == 1) {
-		if (luaL_checkboolean(L, 1)) {
-			glEnable(GL_ALPHA_TEST);
-		} else {
-			glDisable(GL_ALPHA_TEST);
-		}
+		GLCompat::AlphaTest(luaL_checkboolean(L, 1));
 	}
 	else if (args == 2) {
-		glEnable(GL_ALPHA_TEST);
-		glAlphaFunc((GLenum)luaL_checkint(L, 1), (GLfloat)luaL_checkint(L, 2));
+		GLCompat::AlphaTest(true);
+		GLCompat::AlphaFunc((GLenum)luaL_checkint(L, 1), (GLfloat)luaL_checknumber(L, 2));
 	}
 	else {
 		luaL_error(L, "Incorrect arguments to gl.AlphaTest()");

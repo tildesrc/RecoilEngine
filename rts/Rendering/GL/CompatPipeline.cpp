@@ -48,6 +48,11 @@ namespace {
 		return (matrixMode == GL_PROJECTION) ? projectionStack : modelViewStack;
 	}
 
+	// alpha-test state
+	bool         alphaTestOn   = false;
+	unsigned int alphaTestFunc = GL_ALWAYS;
+	float        alphaTestRef  = 0.0f;
+
 	// immediate-mode accumulation
 	bool          immActive = false;
 	unsigned int  immMode   = 0;
@@ -137,6 +142,43 @@ void ResetMatrixState()
 
 /******************************************************************************/
 
+void AlphaFunc(unsigned int func, float ref)
+{
+	if (!Emulated()) { glAlphaFunc(func, ref); return; }
+
+	alphaTestFunc = func;
+	alphaTestRef  = ref;
+}
+
+void AlphaTest(bool enable)
+{
+	if (!Emulated()) {
+		if (enable) glEnable(GL_ALPHA_TEST); else glDisable(GL_ALPHA_TEST);
+		return;
+	}
+
+	alphaTestOn = enable;
+}
+
+float4 GetAlphaCtrl()
+{
+	// see AlphaDiscard() in RenderBuffers.inl: a fragment survives when
+	// (a > x)*y + (a < x)*z + w is non-zero
+	if (!alphaTestOn)
+		return float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	switch (alphaTestFunc) {
+		case GL_GREATER:
+		case GL_GEQUAL: return float4(alphaTestRef, 1.0f, 0.0f, 0.0f);
+		case GL_LESS:
+		case GL_LEQUAL: return float4(alphaTestRef, 0.0f, 1.0f, 0.0f);
+		case GL_NEVER:  return float4(0.0f, 0.0f, 0.0f, 0.0f);
+		default:        return float4(0.0f, 0.0f, 0.0f, 1.0f); // ALWAYS, EQUAL, NOTEQUAL
+	}
+}
+
+/******************************************************************************/
+
 void Begin(unsigned int primMode)
 {
 	if (!Emulated()) { glBegin(primMode); return; }
@@ -222,9 +264,11 @@ void End()
 
 	Shader::IProgramObject& sh = rb.GetShader();
 	const CMatrix44f mvp = GetMVP();
+	const float4 alphaCtrl = GetAlphaCtrl();
 
 	sh.Enable();
 	sh.SetUniformMatrix4x4("transformMatrix", false, &mvp.m[0]);
+	sh.SetUniform4v("alphaCtrl", &alphaCtrl.x);
 	rb.Submit(mode);
 	sh.Disable();
 }

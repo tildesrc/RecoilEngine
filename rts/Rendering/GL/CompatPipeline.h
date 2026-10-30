@@ -4,6 +4,7 @@
 #define GL_COMPAT_PIPELINE_H
 
 #include "System/Matrix44f.h"
+#include "System/float4.h"
 
 // Software stand-ins for the parts of the fixed-function pipeline a core
 // profile removed. Every entry point here passes straight through to the real
@@ -35,6 +36,17 @@ namespace GLCompat {
 	// Reset both stacks to identity. Called once per frame so that a call site
 	// which pushed without popping cannot corrupt every later frame.
 	void ResetMatrixState();
+
+	// --- alpha test (glAlphaFunc/glEnable(GL_ALPHA_TEST)) ---
+	//
+	// Removed in core, where it is a silent no-op: texels a call site meant to
+	// discard get blended instead, which reads as washed-out or ghosted art.
+	// The render-buffer shaders already carry an alphaCtrl uniform and an
+	// AlphaDiscard() built on it, so track the state and hand it over.
+	void AlphaFunc(unsigned int func, float ref);
+	void AlphaTest(bool enable);
+	// {ref, pass-if-greater, pass-if-less, pass-always} as AlphaDiscard wants it
+	float4 GetAlphaCtrl();
 
 	// --- immediate mode (glBegin/glVertex/...) ---
 	void Begin(unsigned int primMode);
