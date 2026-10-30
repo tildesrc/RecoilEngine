@@ -43,11 +43,15 @@ namespace Shader {
 	// attribute arrays instead - and those need a location both sides agree
 	// on, which is why these are bound explicitly before every link rather
 	// than left to the linker.
+	// NOTE: the first three deliberately match VA_TYPE_TC's attribute
+	// definitions (pos=0, uv=1, color=2) so that a render buffer of that type
+	// can feed a shader built on this prelude without re-binding anything -
+	// which is what Lua's emulated immediate mode relies on.
 	enum CompatAttribLoc {
 		COMPAT_ATTRIB_VERTEX    = 0,
-		COMPAT_ATTRIB_NORMAL    = 1,
+		COMPAT_ATTRIB_TEXCOORD0 = 1,
 		COMPAT_ATTRIB_COLOR     = 2,
-		COMPAT_ATTRIB_TEXCOORD0 = 3,
+		COMPAT_ATTRIB_NORMAL    = 3,
 		COMPAT_ATTRIB_TEXCOORD1 = 4,
 	};
 

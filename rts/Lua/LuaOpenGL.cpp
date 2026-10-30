@@ -21,6 +21,8 @@
 #include <fmt/format.h>
 
 #include "LuaOpenGL.h"
+#include "Rendering/GlobalRenderingInfo.h"
+#include "Rendering/GL/RenderBuffers.h"
 
 #include "LuaInclude.h"
 #include "LuaContextData.h"
@@ -499,6 +501,145 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 /******************************************************************************/
 /******************************************************************************/
 
+/******************************************************************************/
+//
+// Immediate-mode emulation for a core profile.
+//
+// gl.BeginEnd/gl.Shape are glBegin/glEnd, and gl.Vertex and friends are
+// glVertex*/glColor*/glTexCoord* - all removed in a core profile, where they
+// are silent no-ops. That makes every Lua-drawn thing invisible: particle
+// effects, start boxes, range circles, mouse decorations, panel backgrounds.
+//
+// Accumulate the vertices instead, and on End push them through a render
+// buffer as one glDrawArrays. VA_TYPE_TC's attribute locations line up with
+// the compatibility prelude's (see Shader::CompatAttribLoc), so a shader the
+// game bound with gl.UseShader reads them where it expects.
+//
+namespace LuaImmediate {
+	static bool  active   = false;
+	static GLenum primMode = 0;
+	static SColor curColor = SColor{1.0f, 1.0f, 1.0f, 1.0f};
+	static float  curS = 0.0f, curT = 0.0f;
+	static std::vector<VA_TYPE_TC> verts;
+
+	bool Emulated() { return globalRenderingInfo.glContextIsCore; }
+	bool Active()   { return active; }
+
+	void Begin(GLenum mode) {
+		active   = true;
+		primMode = mode;
+		verts.clear();
+	}
+
+	void Vertex(float x, float y, float z) { verts.emplace_back(VA_TYPE_TC{{x, y, z}, curS, curT, curColor}); }
+	void Color(float r, float g, float b, float a) { curColor = SColor{r, g, b, a}; }
+	void TexCoord(float s, float t) { curS = s; curT = t; }
+
+	// GL_QUADS, GL_QUAD_STRIP and GL_POLYGON are themselves removed in core
+	static void Triangulate(std::vector<VA_TYPE_TC>& out, GLenum& mode) {
+		switch (mode) {
+			case GL_QUADS: {
+				std::vector<VA_TYPE_TC> tris;
+				tris.reserve((verts.size() / 4) * 6);
+				for (size_t i = 0; (i + 3) < verts.size(); i += 4) {
+					tris.push_back(verts[i + 0]); tris.push_back(verts[i + 1]); tris.push_back(verts[i + 2]);
+					tris.push_back(verts[i + 0]); tris.push_back(verts[i + 2]); tris.push_back(verts[i + 3]);
+				}
+				out = std::move(tris);
+				mode = GL_TRIANGLES;
+			} break;
+			case GL_QUAD_STRIP: {
+				std::vector<VA_TYPE_TC> tris;
+				for (size_t i = 0; (i + 3) < verts.size(); i += 2) {
+					tris.push_back(verts[i + 0]); tris.push_back(verts[i + 1]); tris.push_back(verts[i + 2]);
+					tris.push_back(verts[i + 2]); tris.push_back(verts[i + 1]); tris.push_back(verts[i + 3]);
+				}
+				out = std::move(tris);
+				mode = GL_TRIANGLES;
+			} break;
+			case GL_POLYGON: {
+				// convex fan, which is all GL_POLYGON ever promised
+				out = verts;
+				mode = GL_TRIANGLE_FAN;
+			} break;
+			default: {
+				out = verts;
+			} break;
+		}
+	}
+
+	void End() {
+		active = false;
+
+		if (verts.empty())
+			return;
+
+		GLenum mode = primMode;
+		std::vector<VA_TYPE_TC> out;
+		Triangulate(out, mode);
+
+		if (out.empty())
+			return;
+
+		auto& rb = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_TC>();
+		for (const VA_TYPE_TC& v: out)
+			rb.AddVertex(VA_TYPE_TC{v});
+
+		GLint boundProg = 0;
+		glGetIntegerv(GL_CURRENT_PROGRAM, &boundProg);
+
+		if (boundProg != 0) {
+			// the game bound its own shader; it owns the transform too
+			rb.Submit(mode);
+			return;
+		}
+
+		// no shader: supply the transform the fixed-function path would have
+		// had, chosen by which pass Lua is drawing in
+		Shader::IProgramObject& sh = rb.GetShader();
+		CMatrix44f transform;
+
+		switch (LuaOpenGL::GetDrawMode()) {
+			case LuaOpenGL::DRAW_SCREEN:
+			case LuaOpenGL::DRAW_MINIMAP:
+			case LuaOpenGL::DRAW_MINIMAP_BACKGROUND: {
+				transform = globalRendering->screenProjMatrix * globalRendering->screenViewMatrix;
+			} break;
+			default: {
+				if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
+					transform = cam->GetViewProjectionMatrix();
+			} break;
+		}
+
+		sh.Enable();
+		sh.SetUniformMatrix4x4("transformMatrix", false, &transform.m[0]);
+		rb.Submit(mode);
+		sh.Disable();
+	}
+}
+
+// Thin wrappers used in place of the immediate-mode calls below: they
+// accumulate while LuaImmediate is active and otherwise behave exactly as
+// before, so a compatibility profile is unaffected.
+static inline void LuaImmVertex2f(float x, float y)                   { if (LuaImmediate::Active()) LuaImmediate::Vertex(x, y, 0.0f); else glVertex2f(x, y); }
+static inline void LuaImmVertex3f(float x, float y, float z)          { if (LuaImmediate::Active()) LuaImmediate::Vertex(x, y, z);    else glVertex3f(x, y, z); }
+static inline void LuaImmVertex4f(float x, float y, float z, float w) { if (LuaImmediate::Active()) LuaImmediate::Vertex(x, y, z);    else glVertex4f(x, y, z, w); }
+static inline void LuaImmVertex3fv(const float* v)                    { if (LuaImmediate::Active()) LuaImmediate::Vertex(v[0], v[1], v[2]); else glVertex3fv(v); }
+
+static inline void LuaImmColor4f(float r, float g, float b, float a)  { if (LuaImmediate::Active()) LuaImmediate::Color(r, g, b, a);  else glColor4f(r, g, b, a); }
+static inline void LuaImmColor3f(float r, float g, float b)           { if (LuaImmediate::Active()) LuaImmediate::Color(r, g, b, 1.0f); else glColor3f(r, g, b); }
+static inline void LuaImmColor4fv(const float* c)                     { if (LuaImmediate::Active()) LuaImmediate::Color(c[0], c[1], c[2], c[3]); else glColor4fv(c); }
+
+static inline void LuaImmTexCoord1f(float s)                              { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, 0.0f); else glTexCoord1f(s); }
+static inline void LuaImmTexCoord2f(float s, float t)                     { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord2f(s, t); }
+static inline void LuaImmTexCoord3f(float s, float t, float r)            { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord3f(s, t, r); }
+static inline void LuaImmTexCoord4f(float s, float t, float r, float q)   { if (LuaImmediate::Active()) LuaImmediate::TexCoord(s, t);    else glTexCoord4f(s, t, r, q); }
+static inline void LuaImmTexCoord2fv(const float* v)                      { if (LuaImmediate::Active()) LuaImmediate::TexCoord(v[0], v[1]); else glTexCoord2fv(v); }
+
+// normals are not carried by VA_TYPE_TC; drop them while emulating
+static inline void LuaImmNormal3f(float x, float y, float z) { if (!LuaImmediate::Active()) glNormal3f(x, y, z); }
+static inline void LuaImmNormal3fv(const float* v)           { if (!LuaImmediate::Active()) glNormal3fv(v); }
+
 void LuaOpenGL::ResetGLState()
 {
 	glDisable(GL_DEPTH_TEST);
@@ -568,7 +709,7 @@ void LuaOpenGL::ResetGLState()
 	glPointParameterf(GL_POINT_SIZE_MAX, 1.0e9f); // FIXME?
 	glPointParameterf(GL_POINT_FADE_THRESHOLD_SIZE, 1.0f);
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	LuaImmColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	const float ambient[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
 	const float diffuse[4] = { 0.8f, 0.8f, 0.8f, 1.0f };
 	const float black[4]   = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -2279,8 +2420,8 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 				const float yb = heightmap[ziOff + xib];
 				const float yt = heightmap[ziOff + xit];
 				const float z = zi * SQUARE_SIZE;
-				glVertex3f(xt, yt, z);
-				glVertex3f(xb, yb, z);
+				LuaImmVertex3f(xt, yt, z);
+				LuaImmVertex3f(xb, yb, z);
 			}
 			glEnd();
 		}
@@ -2302,10 +2443,10 @@ int LuaOpenGL::DrawGroundQuad(lua_State* L)
 				const float yb = heightmap[ziOff + xib];
 				const float yt = heightmap[ziOff + xit];
 				const float z = zi * SQUARE_SIZE;
-				glTexCoord2f(tut, tv);
-				glVertex3f(xt, yt, z);
-				glTexCoord2f(tub, tv);
-				glVertex3f(xb, yb, z);
+				LuaImmTexCoord2f(tut, tv);
+				LuaImmVertex3f(xt, yt, z);
+				LuaImmTexCoord2f(tub, tv);
+				LuaImmVertex3f(xb, yb, z);
 				tv += tvStep;
 			}
 			glEnd();
@@ -2421,7 +2562,12 @@ int LuaOpenGL::Shape(lua_State* L)
 
 	const GLuint type = (GLuint)luaL_checkint(L, 1);
 
-	glBegin(type);
+	const bool emulate = LuaImmediate::Emulated();
+
+	if (emulate)
+		LuaImmediate::Begin(type);
+	else
+		glBegin(type);
 
 	const int table = 2;
 	int i = 1;
@@ -2433,17 +2579,20 @@ int LuaOpenGL::Shape(lua_State* L)
 			luaL_error(L, "Shape: bad vertex data");
 			break;
 		}
-		if (vd.hasColor) { glColor4fv(vd.color);   }
-		if (vd.hasTxcd)  { glTexCoord2fv(vd.txcd); }
-		if (vd.hasNorm)  { glNormal3fv(vd.norm);   }
-		if (vd.hasVert)  { glVertex3fv(vd.vert);   } // always last
+		if (vd.hasColor) { LuaImmColor4fv(vd.color);   }
+		if (vd.hasTxcd)  { LuaImmTexCoord2fv(vd.txcd); }
+		if (vd.hasNorm)  { LuaImmNormal3fv(vd.norm);   }
+		if (vd.hasVert)  { LuaImmVertex3fv(vd.vert);   } // always last
 	}
 	if (!lua_isnil(L, -1)) {
 		luaL_error(L, "Shape: bad vertex data, not a table");
 	}
 	// lua_pop(L, 1);
 
-	glEnd();
+	if (emulate)
+		LuaImmediate::End();
+	else
+		glEnd();
 
 	return 0;
 }
@@ -2473,9 +2622,19 @@ int LuaOpenGL::BeginEnd(lua_State* L)
 	}
 
 	// call the function
-	glBegin(primMode);
+	const bool emulate = LuaImmediate::Emulated();
+
+	if (emulate)
+		LuaImmediate::Begin(primMode);
+	else
+		glBegin(primMode);
+
 	const int error = lua_pcall(L, (args - 2), 0, 0);
-	glEnd();
+
+	if (emulate)
+		LuaImmediate::End();
+	else
+		glEnd();
 
 	if (error != 0) {
 		LOG_L(L_ERROR, "gl.BeginEnd: error(%i) = %s",
@@ -2530,17 +2689,17 @@ int LuaOpenGL::Vertex(lua_State* L)
 		const float y = lua_tofloat(L, -1);
 		lua_rawgeti(L, 1, 3);
 		if (!lua_isnumber(L, -1)) {
-			glVertex2f(x, y);
+			LuaImmVertex2f(x, y);
 			return 0;
 		}
 		const float z = lua_tofloat(L, -1);
 		lua_rawgeti(L, 1, 4);
 		if (!lua_isnumber(L, -1)) {
-			glVertex3f(x, y, z);
+			LuaImmVertex3f(x, y, z);
 			return 0;
 		}
 		const float w = lua_tofloat(L, -1);
-		glVertex4f(x, y, z, w);
+		LuaImmVertex4f(x, y, z, w);
 		return 0;
 	}
 
@@ -2548,19 +2707,19 @@ int LuaOpenGL::Vertex(lua_State* L)
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
 		const float z = luaL_checkfloat(L, 3);
-		glVertex3f(x, y, z);
+		LuaImmVertex3f(x, y, z);
 	}
 	else if (args == 2) {
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
-		glVertex2f(x, y);
+		LuaImmVertex2f(x, y);
 	}
 	else if (args == 4) {
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
 		const float z = luaL_checkfloat(L, 3);
 		const float w = luaL_checkfloat(L, 4);
-		glVertex4f(x, y, z, w);
+		LuaImmVertex4f(x, y, z, w);
 	}
 	else {
 		luaL_error(L, "Incorrect arguments to gl.Vertex()");
@@ -2606,14 +2765,14 @@ int LuaOpenGL::Normal(lua_State* L)
 			luaL_error(L, "Bad data passed to gl.Normal()");
 		}
 		const float z = lua_tofloat(L, -1);
-		glNormal3f(x, y, z);
+		LuaImmNormal3f(x, y, z);
 		return 0;
 	}
 
 	const float x = luaL_checkfloat(L, 1);
 	const float y = luaL_checkfloat(L, 2);
 	const float z = luaL_checkfloat(L, 3);
-	glNormal3f(x, y, z);
+	LuaImmNormal3f(x, y, z);
 	return 0;
 }
 
@@ -2651,7 +2810,7 @@ int LuaOpenGL::TexCoord(lua_State* L)
 	if (args == 1) {
 		if (lua_isnumber(L, 1)) {
 			const float x = lua_tofloat(L, 1);
-			glTexCoord1f(x);
+			LuaImmTexCoord1f(x);
 			return 0;
 		}
 		if (!lua_istable(L, 1)) {
@@ -2664,43 +2823,43 @@ int LuaOpenGL::TexCoord(lua_State* L)
 		const float x = lua_tofloat(L, -1);
 		lua_rawgeti(L, 1, 2);
 		if (!lua_isnumber(L, -1)) {
-			glTexCoord1f(x);
+			LuaImmTexCoord1f(x);
 			return 0;
 		}
 		const float y = lua_tofloat(L, -1);
 		lua_rawgeti(L, 1, 3);
 		if (!lua_isnumber(L, -1)) {
-			glTexCoord2f(x, y);
+			LuaImmTexCoord2f(x, y);
 			return 0;
 		}
 		const float z = lua_tofloat(L, -1);
 		lua_rawgeti(L, 1, 4);
 		if (!lua_isnumber(L, -1)) {
-			glTexCoord3f(x, y, z);
+			LuaImmTexCoord3f(x, y, z);
 			return 0;
 		}
 		const float w = lua_tofloat(L, -1);
-		glTexCoord4f(x, y, z, w);
+		LuaImmTexCoord4f(x, y, z, w);
 		return 0;
 	}
 
 	if (args == 2) {
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
-		glTexCoord2f(x, y);
+		LuaImmTexCoord2f(x, y);
 	}
 	else if (args == 3) {
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
 		const float z = luaL_checkfloat(L, 3);
-		glTexCoord3f(x, y, z);
+		LuaImmTexCoord3f(x, y, z);
 	}
 	else if (args == 4) {
 		const float x = luaL_checkfloat(L, 1);
 		const float y = luaL_checkfloat(L, 2);
 		const float z = luaL_checkfloat(L, 3);
 		const float w = luaL_checkfloat(L, 4);
-		glTexCoord4f(x, y, z, w);
+		LuaImmTexCoord4f(x, y, z, w);
 	}
 	else {
 		luaL_error(L, "Incorrect arguments to gl.TexCoord()");
@@ -2962,10 +3121,10 @@ int LuaOpenGL::TexRect(lua_State* L)
 			t2 = 1.0f;
 		}
 		glBegin(GL_QUADS); {
-			glTexCoord2f(s1, t1); glVertex2f(x1, y1);
-			glTexCoord2f(s2, t1); glVertex2f(x2, y1);
-			glTexCoord2f(s2, t2); glVertex2f(x2, y2);
-			glTexCoord2f(s1, t2); glVertex2f(x1, y2);
+			LuaImmTexCoord2f(s1, t1); LuaImmVertex2f(x1, y1);
+			LuaImmTexCoord2f(s2, t1); LuaImmVertex2f(x2, y1);
+			LuaImmTexCoord2f(s2, t2); LuaImmVertex2f(x2, y2);
+			LuaImmTexCoord2f(s1, t2); LuaImmVertex2f(x1, y2);
 		}
 		glEnd();
 		return 0;
@@ -2976,10 +3135,10 @@ int LuaOpenGL::TexRect(lua_State* L)
 	const float s2 = luaL_checkfloat(L, 7);
 	const float t2 = luaL_checkfloat(L, 8);
 	glBegin(GL_QUADS); {
-		glTexCoord2f(s1, t1); glVertex2f(x1, y1);
-		glTexCoord2f(s2, t1); glVertex2f(x2, y1);
-		glTexCoord2f(s2, t2); glVertex2f(x2, y2);
-		glTexCoord2f(s1, t2); glVertex2f(x1, y2);
+		LuaImmTexCoord2f(s1, t1); LuaImmVertex2f(x1, y1);
+		LuaImmTexCoord2f(s2, t1); LuaImmVertex2f(x2, y1);
+		LuaImmTexCoord2f(s2, t2); LuaImmVertex2f(x2, y2);
+		LuaImmTexCoord2f(s1, t2); LuaImmVertex2f(x1, y2);
 	}
 	glEnd();
 
@@ -3093,7 +3252,7 @@ int LuaOpenGL::Color(lua_State* L)
 		luaL_error(L, "Incorrect arguments to gl.Color()");
 	}
 
-	glColor4fv(color.data());
+	LuaImmColor4fv(color.data());
 
 	return 0;
 }

@@ -143,6 +143,9 @@ class LuaOpenGL {
 		inline static std::array<float, 4> color;
 
 		static DrawMode drawMode;
+	public:
+		static DrawMode GetDrawMode() { return drawMode; }
+	private:
 		static DrawMode prevDrawMode; // for minimap (when drawn in Screen mode)
 		static bool safeMode;
 		static bool canUseShaders;
