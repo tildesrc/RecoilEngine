@@ -1655,9 +1655,17 @@ int LuaOpenGL::DrawMiniMap(lua_State* L)
 		luaL_error(L, "gl.DrawMiniMap() can only be used if the minimap is in slave mode");
 
 	if (luaL_optboolean(L, 1, true)) {
-		// default transform
-		LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
-		glScalef(globalRendering->viewSizeX, globalRendering->viewSizeY, 1.0f);
+		// default transform: the minimap draws in a unit square, so this is
+		// what sizes it to the viewport. glScalef is dead in a core profile,
+		// where the push above is emulated - without the scale going to the
+		// same stack the minimap is drawn one pixel across.
+		if (LuaMatrixStack::Emulated()) {
+			LuaMatrixStack::Push();
+			LuaMatrixStack::Mult(CMatrix44f().Scale(float3{globalRendering->viewSizeX * 1.0f, globalRendering->viewSizeY * 1.0f, 1.0f}));
+		} else {
+			glPushMatrix();
+			glScalef(globalRendering->viewSizeX, globalRendering->viewSizeY, 1.0f);
+		}
 
 		minimap->DrawForReal(true, false, true);
 
@@ -1739,9 +1747,18 @@ int LuaOpenGL::DrawMiniMapIcons(lua_State* L)
 	params.cullMaxZ = bottom + cullMargin;
 
 	glMatrixMode(GL_MODELVIEW);
-	LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
-	glScalef(1.0f / (right - left), 1.0f / (bottom - top), 1.0f);
-	glTranslatef(-left, -top, 0.0f);
+
+	// as above: these two calls do nothing in a core profile, so the emulated
+	// stack has to be given the same transform
+	if (LuaMatrixStack::Emulated()) {
+		LuaMatrixStack::Push();
+		LuaMatrixStack::Mult(CMatrix44f().Scale(float3{1.0f / (right - left), 1.0f / (bottom - top), 1.0f}));
+		LuaMatrixStack::Mult(CMatrix44f().Translate(float3{-left, -top, 0.0f}));
+	} else {
+		glPushMatrix();
+		glScalef(1.0f / (right - left), 1.0f / (bottom - top), 1.0f);
+		glTranslatef(-left, -top, 0.0f);
+	}
 
 	unitDrawer->DrawUnitMiniMapIcons(params);
 
