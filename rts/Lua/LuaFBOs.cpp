@@ -2,6 +2,7 @@
 
 
 #include "LuaFBOs.h"
+#include "Rendering/GlobalRenderingInfo.h"
 
 #include "LuaInclude.h"
 
@@ -420,12 +421,24 @@ bool LuaFBOs::ApplyDrawBuffers(lua_State* L, int index)
 		glDrawBuffer((GLenum)lua_toint(L, index));
 		return true;
 	}
-	if (lua_istable(L, index) && GLAD_GL_ARB_draw_buffers) {
+	if (lua_istable(L, index)) {
 		int buffers[32] = {GL_NONE};
 		const int count = LuaUtils::ParseIntArray(L, index, buffers, sizeof(buffers) / sizeof(buffers[0]));
 
-		glDrawBuffersARB(count, reinterpret_cast<const GLenum*>(&buffers[0]));
-		return true;
+		// glDrawBuffersARB belongs to ARB_draw_buffers, which a core profile
+		// does not advertise, so GLAD never resolves that entry point and it
+		// stays null - while the back-filled GLAD_GL_ARB_draw_buffers flag says
+		// the functionality is there. Calling through it segfaults. The core
+		// spelling has existed since GL 2.0, so prefer it.
+		if (globalRenderingInfo.glContextIsCore) {
+			glDrawBuffers(count, reinterpret_cast<const GLenum*>(&buffers[0]));
+			return true;
+		}
+
+		if (GLAD_GL_ARB_draw_buffers) {
+			glDrawBuffersARB(count, reinterpret_cast<const GLenum*>(&buffers[0]));
+			return true;
+		}
 	}
 
 	return false;
