@@ -529,9 +529,13 @@ namespace LuaMatrixStack {
 	static std::vector<CMatrix44f> mvStack   = { CMatrix44f() };
 	static std::vector<CMatrix44f> projStack = { CMatrix44f() };
 	static unsigned int mode = GL_MODELVIEW;
-	// a widget that installs its own projection owns the whole transform; the
-	// pass default must not be applied on top of it
-	static bool haveProjection = false;
+	// A widget that installs its own projection owns the whole transform; the
+	// pass default must not be applied on top of it. This travels WITH the
+	// projection stack: gl.RenderToTexture installs an identity projection and
+	// pops it again, and if the flag outlived the pop every later draw in the
+	// frame would silently use the wrong transform - which showed up as the
+	// whole UI flickering, present on some frames and gone on others.
+	static std::vector<char> projInstalled = { 0 };
 
 	bool Emulated() { return globalRenderingInfo.glContextIsCore; }
 
@@ -552,31 +556,44 @@ namespace LuaMatrixStack {
 
 	bool HasProjection() {
 		static const bool disabled = (getenv("SPRING_DBG_NO_LUAMATRIX") != nullptr);
-		return haveProjection && !disabled;
+		return (projInstalled.back() != 0) && !disabled;
 	}
 	const CMatrix44f& GetProjection() { return projStack.back(); }
 
 	void SetMode(unsigned int m) { mode = m; }
 
 	void Push() {
-		if (Cur().size() < 64)
-			Cur().push_back(Cur().back());
+		if (Cur().size() >= 64)
+			return;
+
+		Cur().push_back(Cur().back());
+
+		if (mode == GL_PROJECTION)
+			projInstalled.push_back(projInstalled.back());
 	}
 	void Pop() {
-		if (Cur().size() > 1)
-			Cur().pop_back();
+		if (Cur().size() <= 1)
+			return;
+
+		Cur().pop_back();
+
+		if (mode == GL_PROJECTION && projInstalled.size() > 1)
+			projInstalled.pop_back();
 	}
 	void LoadIdentity() {
 		Top() = CMatrix44f();
-		haveProjection |= (mode == GL_PROJECTION);
+		if (mode == GL_PROJECTION)
+			projInstalled.back() = 1;
 	}
 	void Mult(const CMatrix44f& m) {
 		Top() = Top() * m;
-		haveProjection |= (mode == GL_PROJECTION);
+		if (mode == GL_PROJECTION)
+			projInstalled.back() = 1;
 	}
 	void Load(const CMatrix44f& m) {
 		Top() = m;
-		haveProjection |= (mode == GL_PROJECTION);
+		if (mode == GL_PROJECTION)
+			projInstalled.back() = 1;
 	}
 
 	// Running a list's function at build time applies its matrix calls to the
@@ -587,23 +604,23 @@ namespace LuaMatrixStack {
 		std::vector<CMatrix44f> mv;
 		std::vector<CMatrix44f> proj;
 		unsigned int mode;
-		bool haveProjection;
+		std::vector<char> installed;
 	};
 
-	State SaveState() { return State{mvStack, projStack, mode, haveProjection}; }
+	State SaveState() { return State{mvStack, projStack, mode, projInstalled}; }
 
 	void RestoreState(const State& st) {
 		mvStack = st.mv;
 		projStack = st.proj;
 		mode = st.mode;
-		haveProjection = st.haveProjection;
+		projInstalled = st.installed;
 	}
 
 	void Reset() {
 		mvStack.clear();   mvStack.emplace_back();
 		projStack.clear(); projStack.emplace_back();
 		mode = GL_MODELVIEW;
-		haveProjection = false;
+		projInstalled.clear(); projInstalled.push_back(0);
 	}
 }
 
