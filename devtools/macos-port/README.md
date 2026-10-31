@@ -100,6 +100,11 @@ leaves `WG.Chobby` unset and renders a completely black menu.
   is running are silently lost.
 - `<build>/fonts` must exist (copy `cont/fonts`), or startup aborts with
   "Failed to load FontFile".
+- **A baseline is only valid for the config it was captured under.** Editing
+  `springsettings.cfg` (adding `DefaultLuaMenu`, changing `Water`) changes what
+  is drawn and invalidates an older capture - a comparison then reports a huge
+  difference that is not a regression. Recapture the "before" side after any
+  config change, or compare two fresh runs to check self-consistency.
 - Adding BAR content to the data directory makes `testUnitSync` fail; it is not
   isolated from what is installed. Run `ctest -E testUnitSync`, or move
   `pool/` and `packages/` aside.
