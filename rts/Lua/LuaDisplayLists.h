@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "Rendering/GL/MatrixStateTracker.h"
+#include "LuaDisplayListRecord.h"
 
 class CLuaDisplayLists {
 	public:
@@ -60,6 +61,30 @@ class CLuaDisplayLists {
 			return active.size() - 1;
 		}
 				
+		const LuaDListOps* GetOps(unsigned int index) const
+		{
+			if (index < active.size() && active[index].ops != nullptr)
+				return active[index].ops.get();
+
+			return nullptr;
+		}
+
+		unsigned int NewRecordedList(LuaDListOpsPtr ops)
+		{
+			DLdata d(0);
+			d.ops = std::move(ops);
+
+			if (!unused.empty()) {
+				const unsigned int index = unused[unused.size() - 1];
+				active[index] = d;
+				unused.pop_back();
+				return index;
+			}
+
+			active.push_back(d);
+			return active.size() - 1;
+		}
+
 		int GetLuaFuncRef(unsigned int index) const
 		{
 			if (index < active.size())
@@ -86,7 +111,7 @@ class CLuaDisplayLists {
 
 		void FreeDList(unsigned int index)
 		{
-			if ((index < active.size()) && (active[index].id != 0 || active[index].luaFuncRef != -1)) {
+			if ((index < active.size()) && (active[index].id != 0 || active[index].luaFuncRef != -1 || active[index].ops != nullptr)) {
 				active[index] = DLdata(0);
 				unused.push_back(index);
 			}
@@ -101,6 +126,9 @@ class CLuaDisplayLists {
 			// a core profile has no display lists, so the Lua function is kept
 			// and re-run instead of compiled (see LuaOpenGL::CreateList)
 			int luaFuncRef = -1; // LUA_NOREF
+			// geometry the list's function drew when it was built, for lists
+			// that printed no text; see LuaDisplayListRecord.h
+			LuaDListOpsPtr ops;
 		};
 		std::vector<DLdata> active;
 		std::vector<unsigned int> unused; // references slots in active

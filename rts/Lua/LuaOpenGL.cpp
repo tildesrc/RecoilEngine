@@ -28,6 +28,7 @@
 #include "LuaInclude.h"
 #include "LuaContextData.h"
 #include "LuaDisplayLists.h"
+#include "LuaDisplayListRecord.h"
 #include "LuaFBOs.h"
 #include "LuaFonts.h"
 #include "LuaHandle.h"
@@ -575,6 +576,26 @@ namespace LuaMatrixStack {
 		haveProjection |= (mode == GL_PROJECTION);
 	}
 
+	// Running a list's function at build time applies its matrix calls to the
+	// live stack. Plenty of lists scale or translate without a surrounding
+	// push/pop, because with a real display list those calls only take effect
+	// when the list is executed - so the state has to be saved and put back.
+	struct State {
+		std::vector<CMatrix44f> mv;
+		std::vector<CMatrix44f> proj;
+		unsigned int mode;
+		bool haveProjection;
+	};
+
+	State SaveState() { return State{mvStack, projStack, mode, haveProjection}; }
+
+	void RestoreState(const State& st) {
+		mvStack = st.mv;
+		projStack = st.proj;
+		mode = st.mode;
+		haveProjection = st.haveProjection;
+	}
+
 	void Reset() {
 		mvStack.clear();   mvStack.emplace_back();
 		projStack.clear(); projStack.emplace_back();
@@ -663,16 +684,8 @@ namespace LuaImmediate {
 		}
 	}
 
-	void End() {
-		active = false;
-
-		if (verts.empty())
-			return;
-
-		GLenum mode = primMode;
-		std::vector<VA_TYPE_TC> out;
-		Triangulate(out, mode);
-
+	// shared by immediate submission and by display-list replay
+	void SubmitXf(GLenum mode, const std::vector<VA_TYPE_TC>& out, GLuint boundTex, const float4& alphaCtrl, const CMatrix44f& xform) {
 		if (out.empty())
 			return;
 
@@ -680,9 +693,6 @@ namespace LuaImmediate {
 		// draw samples whatever is bound to unit 0 - nothing, which reads as
 		// black and multiplies the whole primitive away. Untextured geometry
 		// goes through the colour-only buffer instead.
-		GLint boundTex = 0;
-		glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
-
 		if (boundTex == 0) {
 			auto& rbc = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_C>();
 			for (const VA_TYPE_TC& v: out)
@@ -697,12 +707,10 @@ namespace LuaImmediate {
 			}
 
 			Shader::IProgramObject& shc = rbc.GetShader();
-			const CMatrix44f xf = LuaOpenGL::GetDrawTransform();
-			const float4 ac = GLCompat::GetAlphaCtrl();
 
 			shc.Enable();
-			shc.SetUniformMatrix4x4("transformMatrix", false, &xf.m[0]);
-			shc.SetUniform4v("alphaCtrl", &ac.x);
+			shc.SetUniformMatrix4x4("transformMatrix", false, &xform.m[0]);
+			shc.SetUniform4v("alphaCtrl", &alphaCtrl.x);
 			rbc.Submit(mode);
 			shc.Disable();
 			return;
@@ -721,17 +729,47 @@ namespace LuaImmediate {
 			return;
 		}
 
-		// no shader: supply the transform the fixed-function path would have had
 		Shader::IProgramObject& sh = rb.GetShader();
-		const CMatrix44f transform = LuaOpenGL::GetDrawTransform();
-
-		const float4 alphaCtrl = GLCompat::GetAlphaCtrl();
 
 		sh.Enable();
-		sh.SetUniformMatrix4x4("transformMatrix", false, &transform.m[0]);
+		sh.SetUniformMatrix4x4("transformMatrix", false, &xform.m[0]);
 		sh.SetUniform4v("alphaCtrl", &alphaCtrl.x);
 		rb.Submit(mode);
 		sh.Disable();
+	}
+
+	void End() {
+		active = false;
+
+		if (verts.empty())
+			return;
+
+		GLenum mode = primMode;
+		std::vector<VA_TYPE_TC> out;
+		Triangulate(out, mode);
+
+		if (out.empty())
+			return;
+
+		GLint boundTex = 0;
+		glGetIntegerv(GL_TEXTURE_BINDING_2D, &boundTex);
+
+		const float4 alphaCtrl = GLCompat::GetAlphaCtrl();
+
+		// inside gl.CreateList this geometry belongs to the list, not the frame
+		if (LuaDListRecorder::Recording()) {
+			LuaDListOp op;
+			op.mode = mode;
+			op.texture = static_cast<unsigned int>(boundTex);
+			op.alphaCtrl = alphaCtrl;
+			op.xf = LuaOpenGL::GetDrawTransform();
+			op.verts = std::move(out);
+
+			LuaDListRecorder::Add(std::move(op));
+			return;
+		}
+
+		SubmitXf(mode, out, static_cast<GLuint>(boundTex), alphaCtrl, LuaOpenGL::GetDrawTransform());
 	}
 }
 
@@ -1837,6 +1875,14 @@ int LuaOpenGL::Text(lua_State* L)
 	}
 
 	font->SetTextColor(SColor(color.data()));
+
+	// A print inside gl.CreateList cannot be captured (see
+	// LuaDisplayListRecord.h). Suppress it and mark the recording unusable, so
+	// the list falls back to being re-run and keeps its text.
+	if (LuaDListRecorder::Recording()) {
+		LuaDListRecorder::NoteText();
+		return 0;
+	}
 
 	// a core profile has no fixed-function modelview for the font renderer to
 	// read, and its screen-space fallback assumes pixel coordinates - but a
@@ -6745,6 +6791,39 @@ int LuaOpenGL::CreateList(lua_State* L)
 	// func, and calling it back with none is how widgets ended up indexing nil
 	// locals every frame.
 	if (globalRenderingInfo.glContextIsCore) {
+		// GL runs the list's function once, when the list is built, with
+		// whatever the caller set up for it still live. Do the same - BAR's
+		// FlowUI sets a module-level record, builds the list, and clears the
+		// record on the next line, so a function that only ever runs later sees
+		// nil. Its drawing is swallowed here (the frame it would land in is not
+		// the frame it belongs to); the function is kept and re-run on CallList
+		// as before, which is what actually puts pixels on screen.
+		{
+			LuaDListOps discarded;
+
+			const bool origDrawingEnabled = IsDrawingEnabled(L);
+			SetDrawingEnabled(L, true);
+
+			for (int i = 1; i <= args; i++)
+				lua_pushvalue(L, i);
+
+			const LuaMatrixStack::State savedMatrices = LuaMatrixStack::SaveState();
+
+			LuaDListRecorder::Begin(&discarded);
+			const int error = lua_pcall(L, (args - 1), 0, 0);
+			LuaDListRecorder::End();
+
+			LuaMatrixStack::RestoreState(savedMatrices);
+			SetDrawingEnabled(L, origDrawingEnabled);
+
+			if (error != 0) {
+				LOG_L(L_ERROR, "gl.CreateList: error(%i) = %s", error, lua_tostring(L, -1));
+				lua_pop(L, 1);
+				lua_pushnumber(L, 0);
+				return 1;
+			}
+		}
+
 		lua_createtable(L, args, 1);
 
 		for (int i = 1; i <= args; i++) {
