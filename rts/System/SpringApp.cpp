@@ -941,7 +941,15 @@ bool SpringApp::Update()
 			std::sort(targets.begin(), targets.end());
 		}
 
-		if (nextTarget < targets.size() && gs->frameNum >= targets[nextTarget]) {
+		// a menu has no simulation, so its frame number never advances; count
+		// render frames there instead (SPRING_DBG_SHOT_RENDER)
+		static int renderCount = 0;
+		renderCount++;
+
+		const bool byRender = (getenv("SPRING_DBG_SHOT_RENDER") != nullptr);
+		const int now = byRender ? renderCount : gs->frameNum;
+
+		if (nextTarget < targets.size() && now >= targets[nextTarget]) {
 			nextTarget++;
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glReadBuffer(GL_BACK);
