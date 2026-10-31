@@ -94,11 +94,20 @@ void CCursorIcons::DrawCursors() const
 	glPushMatrix();
 	glLoadIdentity();
 
+	const CMatrix44f iconProj = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
-	glLoadMatrixf(CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f));
+	glLoadMatrixf(iconProj);
 
 	sh.Enable();
+
+	// the matrix loads above are no-ops in a core profile, and transformMatrix
+	// persists on this shader between callers - without this the queue icons
+	// are drawn against whatever transform happened to be set last
+	if (globalRenderingInfo.glContextIsCore)
+		sh.SetUniformMatrix4x4("transformMatrix", false, &iconProj.m[0]);
+
 	sh.SetUniform("alphaCtrl", 0.01f, 1.0f, 0.0f, 0.0f); // test > 0.01
 
 	const SColor iconColor = { 1.0f, 1.0f, 1.0f, cmdColors.QueueIconAlpha() };
