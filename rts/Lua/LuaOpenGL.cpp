@@ -566,7 +566,10 @@ namespace LuaMatrixStack {
 		if (Cur().size() > 1)
 			Cur().pop_back();
 	}
-	void LoadIdentity() { Top() = CMatrix44f(); }
+	void LoadIdentity() {
+		Top() = CMatrix44f();
+		haveProjection |= (mode == GL_PROJECTION);
+	}
 	void Mult(const CMatrix44f& m) {
 		Top() = Top() * m;
 		haveProjection |= (mode == GL_PROJECTION);
@@ -629,6 +632,18 @@ CMatrix44f LuaOpenGL::GetDrawTransform()
 		return LuaMatrixStack::GetProjection() * LuaMatrixStack::Get();
 
 	return transform * LuaMatrixStack::Get();
+}
+
+// glMatrixMode is dead in a core profile, so a raw call leaves the emulated
+// stack still pointing at whatever matrix was selected last - every push, pop
+// and load after it then lands on the wrong one. gl.MatrixMode routes properly;
+// these internal call sites have to as well.
+static void SetMatrixMode(GLenum mode)
+{
+	if (LuaMatrixStack::Emulated())
+		LuaMatrixStack::SetMode(mode);
+	else
+		glMatrixMode(mode);
 }
 
 namespace LuaImmediate {
@@ -5035,13 +5050,13 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 
 	glSpringPushAttrib(GL_VIEWPORT_BIT);
 	glViewport(0, 0, tex->xsize, tex->ysize);
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	SetMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix(); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 
 	const int error = lua_pcall(L, lua_gettop(L) - 2, 0, 0);
 
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	SetMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	glSpringPopAttrib();
 
 	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
