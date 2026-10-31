@@ -6809,9 +6809,16 @@ int LuaOpenGL::CreateList(lua_State* L)
 
 			const LuaMatrixStack::State savedMatrices = LuaMatrixStack::SaveState();
 
+			// the compiled path brackets the call the same way; without it the
+			// tracker sees the list's pushes and pops against the caller's
+			// depth and reports underflow
+			SMatrixStateData prevMSD = GetLuaContextData(L)->glMatrixTracker.PushMatrixState(true);
+
 			LuaDListRecorder::Begin(&discarded);
 			const int error = lua_pcall(L, (args - 1), 0, 0);
 			LuaDListRecorder::End();
+
+			GetLuaContextData(L)->glMatrixTracker.PopMatrixState(prevMSD, false);
 
 			LuaMatrixStack::RestoreState(savedMatrices);
 			SetDrawingEnabled(L, origDrawingEnabled);
