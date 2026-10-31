@@ -909,16 +909,43 @@ bool SpringApp::Update()
 	swap = (retc && activeController != nullptr && activeController->Draw());
 	#endif
 
-	{   // TEMP harness
-		static int frameNo = 0;
-		++frameNo;
-		if (const char* e = getenv("SPRING_DBG_SHOT")) {
-			char needle[32]; snprintf(needle, sizeof(needle), ",%d,", frameNo);
-			if ((std::string(",") + e + ",").find(needle) != std::string::npos) {
-				glBindFramebuffer(GL_FRAMEBUFFER, 0);
-				glReadBuffer(GL_BACK);
-				TakeScreenshot("png", 0);
+	// Capture harness for regression comparisons: SPRING_DBG_SHOT holds a
+	// comma-separated list of SIMULATION frames to screenshot at. Keyed on the
+	// sim frame rather than a render counter so a capture is reproducible - the
+	// render rate varies with load and with whether the window has focus, so a
+	// render counter picks a different moment every run.
+	if (const char* e = getenv("SPRING_DBG_SHOT")) {
+		// Parsed once. Each target fires on the first render at or past it,
+		// rather than on an exact match: the sim runs at a fixed 30Hz while the
+		// render rate varies (and drops hard when the window loses focus), so
+		// the render loop frequently never observes a given frame number.
+		static std::vector<int> targets;
+		static size_t nextTarget = 0;
+		static bool parsed = false;
+
+		if (!parsed) {
+			parsed = true;
+
+			for (const char* p = e; *p != '\0'; ) {
+				char* end = nullptr;
+				const long v = std::strtol(p, &end, 10);
+
+				if (end == p)
+					break;
+
+				targets.push_back(static_cast<int>(v));
+
+				for (p = end; *p == ',' || *p == ' '; ++p) {}
 			}
+
+			std::sort(targets.begin(), targets.end());
+		}
+
+		if (nextTarget < targets.size() && gs->frameNum >= targets[nextTarget]) {
+			nextTarget++;
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glReadBuffer(GL_BACK);
+			TakeScreenshot("png", 0);
 		}
 	}
 
