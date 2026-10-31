@@ -6727,12 +6727,26 @@ int LuaOpenGL::CreateList(lua_State* L)
 	// Keep the function instead of a compiled list and re-run it on CallList.
 	// That re-executes rather than replays, which is the best available
 	// equivalent once the recording machinery is gone.
+	//
+	// Keep the ARGUMENTS with it: gl.CreateList(func, arg1, ...) passes them to
+	// func, and calling it back with none is how widgets ended up indexing nil
+	// locals every frame.
 	if (globalRenderingInfo.glContextIsCore) {
-		lua_pushvalue(L, 1);
-		const int funcRef = luaL_ref(L, LUA_REGISTRYINDEX);
+		lua_createtable(L, args, 1);
+
+		for (int i = 1; i <= args; i++) {
+			lua_pushvalue(L, i);
+			lua_rawseti(L, -2, i);
+		}
+
+		// an explicit count, since a nil argument would truncate lua_objlen
+		lua_pushinteger(L, args);
+		lua_setfield(L, -2, "n");
+
+		const int callRef = luaL_ref(L, LUA_REGISTRYINDEX);
 
 		CLuaDisplayLists& displayLists = CLuaHandle::GetActiveDisplayLists(L);
-		lua_pushnumber(L, displayLists.NewLuaFuncList(funcRef));
+		lua_pushnumber(L, displayLists.NewLuaFuncList(callRef));
 		return 1;
 	}
 
@@ -6786,21 +6800,37 @@ int LuaOpenGL::CallList(lua_State* L)
 	const CLuaDisplayLists& displayLists = CLuaHandle::GetActiveDisplayLists(L);
 
 	if (globalRenderingInfo.glContextIsCore) {
-		const int funcRef = displayLists.GetLuaFuncRef(listIndex);
+		const int callRef = displayLists.GetLuaFuncRef(listIndex);
 
-		if (funcRef != LUA_NOREF) {
-			lua_rawgeti(L, LUA_REGISTRYINDEX, funcRef);
+		if (callRef != LUA_NOREF) {
+			lua_rawgeti(L, LUA_REGISTRYINDEX, callRef);
 
-			if (lua_isfunction(L, -1)) {
-				const int error = lua_pcall(L, 0, 0, 0);
+			const int specIdx = lua_gettop(L);
 
-				if (error != 0) {
-					LOG_L(L_ERROR, "gl.CallList: error(%i) = %s", error, lua_tostring(L, -1));
+			if (lua_istable(L, specIdx)) {
+				lua_getfield(L, specIdx, "n");
+				const int count = lua_isnumber(L, -1) ? lua_toint(L, -1) : 0;
+				lua_pop(L, 1);
+
+				lua_rawgeti(L, specIdx, 1);
+
+				if (lua_isfunction(L, -1)) {
+					// the arguments CreateList was handed, in order
+					for (int i = 2; i <= count; i++)
+						lua_rawgeti(L, specIdx, i);
+
+					const int error = lua_pcall(L, std::max(count - 1, 0), 0, 0);
+
+					if (error != 0) {
+						LOG_L(L_ERROR, "gl.CallList: error(%i) = %s", error, lua_tostring(L, -1));
+						lua_pop(L, 1);
+					}
+				} else {
 					lua_pop(L, 1);
 				}
-			} else {
-				lua_pop(L, 1);
 			}
+
+			lua_settop(L, specIdx - 1);
 		}
 
 		return 0;
