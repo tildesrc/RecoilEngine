@@ -22,6 +22,7 @@
 #include "Lua/LuaInputReceiver.h"
 #include "Map/Ground.h"
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/Fonts/glFont.h"
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GL/RenderBuffers.h"
@@ -688,6 +689,12 @@ void CMouseHandler::DrawSelectionBox() const
 
 	sh.Enable();
 
+	// the box verts are world-space, and transformMatrix persists on this
+	// shared shader between callers - without stating it the box is drawn
+	// against whatever transform happened to be set last
+	if (globalRenderingInfo.glContextIsCore)
+		sh.SetUniformMatrix4x4("transformMatrix", false, &camera->GetViewProjectionMatrix().m[0]);
+
 	rb.DrawArrays(GL_LINE_LOOP);
 
 	sh.Disable();
@@ -1064,6 +1071,15 @@ void CMouseHandler::DrawCursor()
 			auto& sh = rb.GetShader();
 
 			sh.Enable();
+
+			// the three calls above are no-ops in a core profile; fold the same
+			// placement into the transform the shader actually reads
+			if (globalRenderingInfo.glContextIsCore) {
+				CMatrix44f m = CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f);
+				m.Translate(0.5f - globalRendering->pixelX * 0.5f, 0.5f - globalRendering->pixelY * 0.5f, 0.0f);
+				m.Scale({xscale, yscale, 1.0f});
+				sh.SetUniformMatrix4x4("transformMatrix", false, &m.m[0]);
+			}
 
 			if (gu->fpsMode) {
 				DrawFPSCursor(rb);
