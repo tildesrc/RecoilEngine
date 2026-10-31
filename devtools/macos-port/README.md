@@ -45,3 +45,61 @@ So `compare-baseline.py` counts pixels differing by more than a threshold
   particle effects draw on the unsynced RNG and do not reproduce frame-for-frame.
   It still covers terrain, models, team colour, features, shadows, fog of war,
   the build menu with icons, and UI text.
+
+# Running Beyond All Reason
+
+BAR is the goal content; BA is kept because old content exercises the
+compatibility paths hardest.
+
+## Fetching
+
+pr-downloader needs two overrides. BAR ships from its own rapid repo, and its
+server returns 404 for the `streamer.cgi` protocol pr-downloader prefers, so the
+streaming path has to be turned off or every pool fetch fails:
+
+```sh
+cd <build>
+export PRD_RAPID_REPO_MASTER="https://repos.beyondallreason.dev/repos.gz"
+export PRD_RAPID_USE_STREAMER=false
+./tools/pr-downloader/src/pr-downloader --filesystem-writepath "$(pwd)" --download-game "byar:test"
+./tools/pr-downloader/src/pr-downloader --filesystem-writepath "$(pwd)" --download-game "byar-chobby:test"
+```
+
+## The menu
+
+Set `DefaultLuaMenu` in `springsettings.cfg` to the Chobby archive name (as the
+download reports it, e.g. `BYAR Chobby test-4668-2e85fd3`), then launch with no
+start script.
+
+Chobby also needs `<write-dir>/chobby_config.json`. **It is not the
+`dist_cfg/config.json` inside the Chobby archive** — that is a launcher
+template with a `setups` list and no `server` key, and deploying it is worse
+than having no file at all: with the file absent Chobby falls back to a working
+default, while the wrong file makes `config.server` nil and takes the whole
+lobby down. The file Chobby actually wants is:
+
+```json
+{
+	"server": {
+		"address": "road-flag.bnr.la",
+		"port": 8200,
+		"serverName": "BAR",
+		"protocol": "spring"
+	},
+	"game": "byar"
+}
+```
+
+`game` matters: the fallback uses `"generic"`, whose game config has no
+`ShortenNameString`, and that one missing function kills the Chili lobby widget,
+leaves `WG.Chobby` unset and renders a completely black menu.
+
+## Gotchas
+
+- Spring rewrites `springsettings.cfg` on exit, so edits made while an instance
+  is running are silently lost.
+- `<build>/fonts` must exist (copy `cont/fonts`), or startup aborts with
+  "Failed to load FontFile".
+- Adding BAR content to the data directory makes `testUnitSync` fail; it is not
+  isolated from what is installed. Run `ctest -E testUnitSync`, or move
+  `pool/` and `packages/` aside.
