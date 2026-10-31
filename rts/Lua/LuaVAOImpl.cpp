@@ -58,7 +58,12 @@ LuaVAOImpl::~LuaVAOImpl()
 
 bool LuaVAOImpl::Supported()
 {
-	static bool supported = VBO::IsSupported(GL_ARRAY_BUFFER) && VAO::IsSupported() && GLAD_GL_ARB_instanced_arrays && GLAD_GL_ARB_draw_elements_base_vertex && GLAD_GL_ARB_multi_draw_indirect;
+	// ARB_multi_draw_indirect is core only in 4.3, and requiring it here gated
+	// off every Lua VAO on a 4.1 context - buffers, attributes and instanced
+	// drawing all work there, and only Submit() actually needs MDI. BAR's
+	// picture-in-picture minimap was failing at gl.GetVAO() for want of a
+	// feature it may never reach.
+	static bool supported = VBO::IsSupported(GL_ARRAY_BUFFER) && VAO::IsSupported() && GLAD_GL_ARB_instanced_arrays && GLAD_GL_ARB_draw_elements_base_vertex;
 	return supported;
 }
 
@@ -540,7 +545,32 @@ void LuaVAOImpl::Submit()
 	glPrimitiveRestartIndex(indxLuaVBO->primitiveRestartIndex);
 
 	vao->Bind();
-	glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, submitCmds.data(), submitCmds.size(), sizeof(SDrawElementsIndirectCommand));
+
+	if (GLAD_GL_ARB_multi_draw_indirect) {
+		glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, submitCmds.data(), submitCmds.size(), sizeof(SDrawElementsIndirectCommand));
+	} else {
+		// no MDI (pre-4.3): issue the same commands one at a time. The base
+		// instance cannot be honoured without ARB_base_instance, which is 4.2,
+		// so say so once rather than draw the wrong instances in silence.
+		static bool warnedBaseInstance = false;
+
+		for (const auto& cmd: submitCmds) {
+			if (cmd.baseInstance != 0 && !warnedBaseInstance) {
+				warnedBaseInstance = true;
+				LOG_L(L_WARNING, "[LuaVAOImpl::%s] no ARB_multi_draw_indirect and no ARB_base_instance; draws with a non-zero base instance will use the wrong instance data", __func__);
+			}
+
+			glDrawElementsInstancedBaseVertex(
+				GL_TRIANGLES,
+				cmd.indexCount,
+				GL_UNSIGNED_INT,
+				reinterpret_cast<const void*>(static_cast<intptr_t>(cmd.firstIndex) * sizeof(uint32_t)),
+				cmd.instanceCount,
+				cmd.baseVertex
+			);
+		}
+	}
+
 	vao->Unbind();
 
 	glDisable(GL_PRIMITIVE_RESTART);
