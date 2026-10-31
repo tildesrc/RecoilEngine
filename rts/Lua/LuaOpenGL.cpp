@@ -1212,7 +1212,7 @@ void LuaOpenGL::ResetDrawScreenCommon()
 void LuaOpenGL::EnableDrawInMiniMap()
 {
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 
 	if (drawMode == DRAW_SCREEN) {
@@ -1242,7 +1242,7 @@ void LuaOpenGL::DisableDrawInMiniMap()
 	}
 
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 }
 
@@ -1264,7 +1264,7 @@ void LuaOpenGL::ResetDrawInMiniMap()
 void LuaOpenGL::EnableDrawInMiniMapBackground()
 {
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Push() : glPushMatrix();
 
 	if (drawMode == DRAW_SCREEN) {
@@ -1294,7 +1294,7 @@ void LuaOpenGL::DisableDrawInMiniMapBackground()
 	}
 
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 }
 
@@ -1352,7 +1352,7 @@ void LuaOpenGL::RevertScreenMatrices()
 		LuaMatrixStack::Reset();
 
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); gluOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); gluOrtho2D(0.0f, 1.0f, 0.0f, 1.0f);
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 }
 
@@ -1415,7 +1415,7 @@ void LuaOpenGL::RevertScreenLighting()
 void LuaOpenGL::ResetGenesisMatrices()
 {
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 }
 
@@ -1430,7 +1430,7 @@ void LuaOpenGL::ResetWorldMatrices()
 void LuaOpenGL::ResetWorldShadowMatrices()
 {
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f);
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f);
 	glMatrixMode(GL_MODELVIEW ); glLoadMatrixf(shadowHandler.GetShadowMatrixRaw());
 }
 
@@ -1438,7 +1438,7 @@ void LuaOpenGL::ResetWorldShadowMatrices()
 void LuaOpenGL::ResetScreenMatrices()
 {
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
 
 	SetupScreenMatrices();
@@ -1451,7 +1451,7 @@ void LuaOpenGL::ResetMiniMapMatrices()
 
 	// engine draws minimap in 0..1 range, lua uses 0..minimapSize{X,Y}
 	glMatrixMode(GL_TEXTURE   ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity();
-	glMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f); minimap->ApplyConstraintsMatrix();
+	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glOrtho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f); minimap->ApplyConstraintsMatrix();
 	glMatrixMode(GL_MODELVIEW ); LuaMatrixStack::Emulated() ? LuaMatrixStack::LoadIdentity() : glLoadIdentity(); glScalef(1.0f / minimap->GetSizeX(), 1.0f / minimap->GetSizeY(), 1.0f);
 }
 
