@@ -758,6 +758,19 @@ static inline void LuaImmTexCoord3f(float s, float t, float r)            { if (
 static inline void LuaImmTexCoord4f(float s, float t, float r, float q)   { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(s, t);    else glTexCoord4f(s, t, r, q); }
 static inline void LuaImmTexCoord2fv(const float* v)                      { if (LuaImmediate::Emulated()) LuaImmediate::TexCoord(v[0], v[1]); else glTexCoord2fv(v); }
 
+// Chili draws every panel background as a 9-slice through gl.MultiTexCoord, not
+// gl.TexCoord, and these went straight to the raw calls - no-ops in a core
+// profile. Every vertex then carried the default (0,0), sampling one corner
+// texel of the skin, which is transparent: the whole menu drew without
+// backgrounds. The emulated vertex formats carry a single UV channel, so unit 0
+// is routed through and the rest can only be dropped, as they already were.
+static inline bool LuaImmMultiTexEmulated(GLenum texUnit) { return LuaImmediate::Emulated() && texUnit == GL_TEXTURE0; }
+
+static inline void LuaImmMultiTexCoord1f(GLenum u, float s)                            { if (LuaImmMultiTexEmulated(u)) LuaImmediate::TexCoord(s, 0.0f); else glMultiTexCoord1f(u, s); }
+static inline void LuaImmMultiTexCoord2f(GLenum u, float s, float t)                   { if (LuaImmMultiTexEmulated(u)) LuaImmediate::TexCoord(s, t);    else glMultiTexCoord2f(u, s, t); }
+static inline void LuaImmMultiTexCoord3f(GLenum u, float s, float t, float r)          { if (LuaImmMultiTexEmulated(u)) LuaImmediate::TexCoord(s, t);    else glMultiTexCoord3f(u, s, t, r); }
+static inline void LuaImmMultiTexCoord4f(GLenum u, float s, float t, float r, float q) { if (LuaImmMultiTexEmulated(u)) LuaImmediate::TexCoord(s, t);    else glMultiTexCoord4f(u, s, t, r, q); }
+
 // glRectf is removed in core too; emit the same quad through the accumulator
 static inline void LuaImmRectf(float x1, float y1, float x2, float y2) {
 	if (!LuaImmediate::Emulated()) {
@@ -3070,7 +3083,7 @@ int LuaOpenGL::MultiTexCoord(lua_State* L)
 	if (args == 1) {
 		if (lua_isnumber(L, 2)) {
 			const float x = lua_tofloat(L, 2);
-			glMultiTexCoord1f(texUnit, x);
+			LuaImmMultiTexCoord1f(texUnit, x);
 			return 0;
 		}
 		if (!lua_istable(L, 2)) {
@@ -3083,43 +3096,43 @@ int LuaOpenGL::MultiTexCoord(lua_State* L)
 		const float x = lua_tofloat(L, -1);
 		lua_rawgeti(L, 2, 2);
 		if (!lua_isnumber(L, -1)) {
-			glMultiTexCoord1f(texUnit, x);
+			LuaImmMultiTexCoord1f(texUnit, x);
 			return 0;
 		}
 		const float y = lua_tofloat(L, -1);
 		lua_rawgeti(L, 2, 3);
 		if (!lua_isnumber(L, -1)) {
-			glMultiTexCoord2f(texUnit, x, y);
+			LuaImmMultiTexCoord2f(texUnit, x, y);
 			return 0;
 		}
 		const float z = lua_tofloat(L, -1);
 		lua_rawgeti(L, 2, 4);
 		if (!lua_isnumber(L, -1)) {
-			glMultiTexCoord3f(texUnit, x, y, z);
+			LuaImmMultiTexCoord3f(texUnit, x, y, z);
 			return 0;
 		}
 		const float w = lua_tofloat(L, -1);
-		glMultiTexCoord4f(texUnit, x, y, z, w);
+		LuaImmMultiTexCoord4f(texUnit, x, y, z, w);
 		return 0;
 	}
 
 	if (args == 2) {
 		const float x = luaL_checkfloat(L, 2);
 		const float y = luaL_checkfloat(L, 3);
-		glMultiTexCoord2f(texUnit, x, y);
+		LuaImmMultiTexCoord2f(texUnit, x, y);
 	}
 	else if (args == 3) {
 		const float x = luaL_checkfloat(L, 2);
 		const float y = luaL_checkfloat(L, 3);
 		const float z = luaL_checkfloat(L, 4);
-		glMultiTexCoord3f(texUnit, x, y, z);
+		LuaImmMultiTexCoord3f(texUnit, x, y, z);
 	}
 	else if (args == 4) {
 		const float x = luaL_checkfloat(L, 2);
 		const float y = luaL_checkfloat(L, 3);
 		const float z = luaL_checkfloat(L, 4);
 		const float w = luaL_checkfloat(L, 5);
-		glMultiTexCoord4f(texUnit, x, y, z, w);
+		LuaImmMultiTexCoord4f(texUnit, x, y, z, w);
 	}
 	else {
 		luaL_error(L, "Incorrect arguments to gl.MultiTexCoord()");
