@@ -83,6 +83,55 @@ Reading those with `int(texelFetch(...).x)` silently yields nonsense. Use
 
 ## The conversion
 
+**Rebuild the struct, do not rewrite the body.** BAR's shaders declare their own
+`SUniformsBuffer` mirroring the engine's layout, so the cheapest conversion
+replaces the `buffer` block with a function that fills that same struct from
+texels, and redefines the accessor macro to call it. Every `UNITUNIFORMS.field`
+below it then works untouched:
+
+```glsl
+uniform samplerBuffer modelUniforms;
+
+SUniformsBuffer fetchUni(uint idx) {
+    int b = int(idx) * 8;            // 128 bytes == 8 texels
+
+    vec4 t0 = texelFetch(modelUniforms, b + 0);
+    vec4 t1 = texelFetch(modelUniforms, b + 1);
+
+    SUniformsBuffer u;
+    // t0 holds packed integers and the texture is float-formatted
+    u.composite = floatBitsToUint(t0.x);
+    u.unused2   = floatBitsToUint(t0.y);
+    u.unused3   = floatBitsToUint(t0.z);
+    u.unused4   = floatBitsToUint(t0.w);
+
+    u.maxHealth = t1.x;
+    u.health    = t1.y;
+    u.unused5   = t1.z;
+    u.unused6   = t1.w;
+
+    u.drawPos = texelFetch(modelUniforms, b + 2);
+    u.speed   = texelFetch(modelUniforms, b + 3);
+
+    u.userDefined[0] = texelFetch(modelUniforms, b + 4);
+    u.userDefined[1] = texelFetch(modelUniforms, b + 5);
+    u.userDefined[2] = texelFetch(modelUniforms, b + 6);
+    u.userDefined[3] = texelFetch(modelUniforms, b + 7);
+
+    return u;
+}
+```
+
+then `#define UNITUNIFORMS fetchUni(instData.y)` in place of
+`uni[instData.y]`. Match the field names to whatever the shader's own struct
+declares - they vary slightly between shaders.
+
+This fetches all eight texels even when the shader reads two, which has not
+mattered in practice. If a profile ever says otherwise, the per-field macros
+below read only what they need.
+
+### Per-field macros, if you need them
+
 Add this preamble to the shader, keeping the SSBO declaration intact so the same
 source still works on a GL4 driver:
 
@@ -175,6 +224,42 @@ third is what tells you your shader is right.
    unit you damage on purpose. Do not trust "it compiles and draws something":
    a wrong texel offset still compiles and still draws, just with another
    object's data, and at a glance it looks plausible.
+
+## Worked example: health bars (done)
+
+`devtools/macos-port/bar-overrides/` holds the two patches, against the files as
+the BAR archive ships them. The measured cost of one feature:
+
+| | |
+|---|---|
+| Shader diff | ~40 lines, almost all the `fetchUni` function |
+| Widget diff | 3 hunks, 5 lines |
+| Shader body changes | **none** |
+| Result | compiles in 10 ms; failing programs 29 -> 28 |
+
+Only the **NoGS** variant needed converting. The geometry-shader variant still
+fails, and BAR falls back to NoGS on its own - so for a feature with a NoGS
+twin, convert that one and leave the other alone.
+
+### Deploying an override without touching the archive
+
+BAR's content is in a read-only rapid archive, but it does not need patching in
+place:
+
+- `<write-dir>/LuaUI/Widgets/` is scanned with `vfsRaw`, so a widget placed
+  there loads instead of the archive's (the log says `Loading widget from
+  user:` rather than `from mod:`).
+- For unsynced Lua, `VFS.LoadFile`'s default mode is `RAW_FIRST`, so a shader
+  file at `<write-dir>/LuaUI/Shaders/<SameName>.glsl` **shadows** the archive
+  copy with no widget change at all. Keep the filename and capitalisation
+  exactly as the widget's `vssrcpath` spells it.
+
+So: extract the originals from the archive, apply the patch, drop the results in
+the write dir. Nothing in the archive is modified, and removing the files
+restores stock behaviour.
+
+Note that the write dir is gitignored and BAR rewrites parts of it, so these
+patches are the durable copy - not the deployed files.
 
 ## Candidates, in the order worth doing
 

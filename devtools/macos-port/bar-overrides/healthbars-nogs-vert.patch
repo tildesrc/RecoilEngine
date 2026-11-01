@@ -1,0 +1,56 @@
+--- a/LuaUI/Shaders/HealthbarsGL4_nogs.vert.glsl
++++ b/LuaUI/Shaders/HealthbarsGL4_nogs.vert.glsl
+@@ -36,10 +36,41 @@
+     vec4[4] userDefined; // can't use float[16] because float in arrays occupies 4 * float space
+ };
+ 
+-layout(std140, binding=1) readonly buffer UniformsBuffer {
+-    SUniformsBuffer uni[];
+-};
++// macOS/GL 4.1 variant: SSBOs are GL 4.3, so the engine publishes the same
++// per-object data as a GL_TEXTURE_BUFFER instead. Rebuild the struct from its
++// texels and nothing below this point has to change.
++// See devtools/macos-port/SSBO-FALLBACK.md.
++uniform samplerBuffer modelUniforms;
+ 
++SUniformsBuffer fetchUni(uint idx) {
++    int b = int(idx) * 8;            // sizeof(ModelUniformData) == 128 == 8 texels
++
++    vec4 t0 = texelFetch(modelUniforms, b + 0);
++    vec4 t1 = texelFetch(modelUniforms, b + 1);
++
++    SUniformsBuffer u;
++    // t0 holds packed integers, and the texture is float-formatted
++    u.composite = floatBitsToUint(t0.x);
++    u.unused2   = floatBitsToUint(t0.y);
++    u.unused3   = floatBitsToUint(t0.z);
++    u.unused4   = floatBitsToUint(t0.w);
++
++    u.maxHealth = t1.x;
++    u.health    = t1.y;
++    u.unused5   = t1.z;
++    u.unused6   = t1.w;
++
++    u.drawPos = texelFetch(modelUniforms, b + 2);
++    u.speed   = texelFetch(modelUniforms, b + 3);
++
++    u.userDefined[0] = texelFetch(modelUniforms, b + 4);
++    u.userDefined[1] = texelFetch(modelUniforms, b + 5);
++    u.userDefined[2] = texelFetch(modelUniforms, b + 6);
++    u.userDefined[3] = texelFetch(modelUniforms, b + 7);
++
++    return u;
++}
++
+ #line 10000
+ 
+ uniform float iconDistance;
+@@ -59,7 +90,7 @@
+     float g_limit;
+ };
+ 
+-#define UNITUNIFORMS uni[instData.y]
++#define UNITUNIFORMS fetchUni(instData.y)
+ #define UNIFORMLOC bartype_index_ssboloc.z
+ #define BARTYPE bartype_index_ssboloc.x
+ 

@@ -1,0 +1,28 @@
+--- a/LuaUI/Widgets/gui_healthbars_gl4.lua
++++ b/LuaUI/Widgets/gui_healthbars_gl4.lua
+@@ -512,6 +512,9 @@
+ 	shaderName = "Health Bars Shader GL4 (NoGS)",
+ 	uniformInt = {
+ 		healthbartexture = 0,
++		-- macOS/GL 4.1: the per-object data arrives as a buffer texture rather
++		-- than an SSBO, so the shader needs a sampler for it
++		modelUniforms = 5,
+ 	},
+ 	uniformFloat = {
+ 		iconDistance = 27,
+@@ -1450,6 +1453,7 @@
+ 		gl.DepthTest(true)
+ 		gl.DepthMask(true)
+ 		gl.Texture(0, healthbartexture)
++		gl.Texture(5, "$model_uniforms")
+ 		healthBarShader:Activate()
+ 		healthBarShader:SetUniform("iconDistance", disticon)
+ 		if not debugmode then
+@@ -1498,6 +1502,7 @@
+ 		end
+ 
+ 		healthBarShader:Deactivate()
++		gl.Texture(5, false)
+ 		gl.Texture(false)
+ 		gl.Blending(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+ 		gl.Culling(false)
