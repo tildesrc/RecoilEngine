@@ -186,6 +186,39 @@ void UniformConstants::UpdateMatricesImpl(UniformMatricesBuffer* updateBuffer)
 	updateBuffer->cameraProjInv = camPlayer->GetProjectionMatrixInverse();
 	updateBuffer->cameraViewProjInv = camPlayer->GetViewProjectionMatrixInverse();
 
+	// Content reconstructs world position from a depth texture by feeding the
+	// sampled value straight in as NDC z:
+	//
+	//     worldPos = cameraViewProjInv * vec4(uv * 2.0 - 1.0, depth, 1.0);
+	//
+	// That is only right when glClipControl(ZERO_TO_ONE) is in effect, which
+	// makes NDC z equal the stored depth. ARB_clip_control is GL 4.5, and
+	// without it NDC z runs -1..1 while the texture still stores 0..1, so every
+	// such shader places the point at the wrong distance along the view ray -
+	// visible as the whole effect sliding across the terrain.
+	//
+	// Fold the 0..1 -> -1..1 remap into the inverse matrices we publish, so the
+	// shaders above are correct as written. Checked against the shipped BAR
+	// shader corpus: all thirteen users of these matrices pass the raw sampled
+	// depth, so none of them can be remapped twice by this. A shader that did
+	// its own conversion WOULD break, which is why this is tied to the absence
+	// of clip control rather than applied unconditionally.
+	if (!globalRendering->supportClipSpaceControl) {
+		CMatrix44f depthRemap; // (x, y, d, 1) -> (x, y, 2d - 1, 1)
+		depthRemap.m[2 * 4 + 2] =  2.0f;
+		depthRemap.m[3 * 4 + 2] = -1.0f;
+
+		updateBuffer->cameraProjInv     = updateBuffer->cameraProjInv     * depthRemap;
+		updateBuffer->cameraViewProjInv = updateBuffer->cameraViewProjInv * depthRemap;
+
+		static bool logged = false;
+
+		if (!logged) {
+			logged = true;
+			LOG("[UniformConstants] no ARB_clip_control: publishing cameraProjInv/cameraViewProjInv with a 0..1 depth remap folded in");
+		}
+	}
+
 	updateBuffer->shadowView = shadowHandler.GetShadowViewMatrix(CShadowHandler::SHADOWMAT_TYPE_DRAWING);
 	updateBuffer->shadowProj = shadowHandler.GetShadowProjMatrix(CShadowHandler::SHADOWMAT_TYPE_DRAWING);
 	updateBuffer->shadowViewProj = updateBuffer->shadowProj * updateBuffer->shadowView;
