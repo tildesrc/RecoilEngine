@@ -34,6 +34,11 @@ namespace Shader {
 	// Outside a core profile this just hands back the source's own version line.
 	std::string BuildGlslCompatPreamble(unsigned int type, std::string& srcStr, std::string* defsStr = nullptr);
 
+	// Bindings taken out of "layout(binding = N)" by the preamble builder, to be
+	// applied with glUniformBlockBinding / glUniform1i once a program is linked.
+	const spring::unordered_map<std::string, int>& GetGlslUniformBlockBindings();
+	const spring::unordered_map<std::string, int>& GetGlslSamplerBindings();
+
 
 	// Fixed attribute locations for the vertex inputs the core-profile
 	// compatibility prelude substitutes for gl_Vertex and friends (see

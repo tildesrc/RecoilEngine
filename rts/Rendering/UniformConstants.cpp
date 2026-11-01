@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "Rendering/GlobalRendering.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "Rendering/ShadowHandler.h"
 #include "Rendering/Env/ISky.h"
 #include "Rendering/Env/SunLighting.h"
@@ -109,7 +110,14 @@ CR_REG_METADATA(UniformParamsBuffer, (
 
 bool UniformConstants::Supported()
 {
-	static bool supported = VBO::IsSupported(GL_UNIFORM_BUFFER) && GLAD_GL_ARB_shading_language_420pack; //UBO && UBO layout(binding=x)
+	// 420pack was required only for the "layout(binding = x)" spelling of a UBO
+	// binding, which BuildGlslCompatPreamble now lifts out of the source and
+	// re-applies with glUniformBlockBinding (core since 3.1). The buffers
+	// themselves need nothing newer than UBO support, so asking for a GL 4.2
+	// extension here left every shader that reads these blocks - which on BAR is
+	// most of them - bound to empty slots on a 4.1 driver.
+	static bool supported = VBO::IsSupported(GL_UNIFORM_BUFFER) &&
+		(GLAD_GL_ARB_shading_language_420pack || globalRenderingInfo.glContextIsCore);
 	return supported;
 }
 

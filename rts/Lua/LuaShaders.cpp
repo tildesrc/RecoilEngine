@@ -793,6 +793,41 @@ int LuaShaders::CreateShader(lua_State* L)
 	glLinkProgram(prog);
 	glGetProgramiv(prog, GL_LINK_STATUS, &linkStatus);
 
+	// Re-apply the bindings BuildGlslCompatPreamble had to strip out of
+	// "layout(binding = N)" because this driver has no GL 4.2. Doing it through
+	// the API is equivalent and has been core since 3.1. Names the program does
+	// not have come back INVALID_INDEX and cost nothing, so there is no need to
+	// track which shader contributed which binding.
+	if (linkStatus == GL_TRUE && globalRenderingInfo.glContextIsCore) {
+		for (const auto& [name, binding]: Shader::GetGlslUniformBlockBindings()) {
+			const GLuint idx = glGetUniformBlockIndex(prog, name.c_str());
+
+			if (idx != GL_INVALID_INDEX)
+				glUniformBlockBinding(prog, idx, binding);
+		}
+
+		const auto& samplerBindings = Shader::GetGlslSamplerBindings();
+
+		if (!samplerBindings.empty()) {
+			GLint prevProgram = 0;
+			glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
+			glUseProgram(prog);
+
+			// a sampler's binding is ordinary uniform state, so it needs the
+			// program current
+			for (const auto& [name, binding]: samplerBindings) {
+				const GLint loc = glGetUniformLocation(prog, name.c_str());
+
+				if (loc >= 0)
+					glUniform1i(loc, binding);
+			}
+
+			glUseProgram(prevProgram);
+		}
+
+		glClearErrors("LuaShaders", __func__, false);
+	}
+
 	// Parse active uniforms and locations
 	GLint currentProgram = FillActiveUniforms(p);
 

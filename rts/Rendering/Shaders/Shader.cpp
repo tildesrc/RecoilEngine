@@ -7,6 +7,7 @@
 #include "Rendering/GL/myGL.h"
 #include "Rendering/GlobalRendering.h"
 #include "Rendering/GlobalRenderingInfo.h"
+#include "System/UnorderedSet.hpp"
 #include "Game/Camera.h"
 #include "Rendering/Env/ISky.h"
 #include "Game/CameraHandler.h"
@@ -32,6 +33,155 @@
 
 // #extension has to precede any non-preprocessor token, so it must be lifted out
 // of the body and re-emitted ahead of anything the compat prelude declares.
+// Is this extension in the driver's own extension string?
+//
+// A core profile does not advertise the extensions it absorbed, so a shader
+// asking for one by name gets a hard error from "#extension ... : require"
+// even though the FEATURE is present via the version. Dropping such a
+// directive is therefore the correct move, not a workaround: either the
+// version already provides it, or no directive could have made it work.
+static bool GlslExtensionAdvertised(const std::string& name)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	static spring::unsynced_set<std::string> exts;
+	static bool filled = false;
+
+	if (!filled) {
+		filled = true;
+
+		GLint n = 0;
+		glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+
+		for (GLint i = 0; i < n; i++) {
+			if (const char* e = (const char*) glGetStringi(GL_EXTENSIONS, i); e != nullptr)
+				exts.insert(e);
+		}
+
+		glClearErrors("Shader", __func__, false);
+	}
+
+	return (exts.find(name) != exts.end());
+}
+
+// Name in "#extension <name> : <behaviour>"; empty when the line is malformed
+// or names the catch-all "all", which must never be dropped silently.
+static std::string GlslExtensionName(const std::string& line)
+{
+	const size_t ks = line.find("#extension ");
+
+	if (ks == std::string::npos)
+		return "";
+
+	size_t b = ks + 11;
+	while (b < line.size() && (line[b] == ' ' || line[b] == '\t'))
+		b++;
+
+	size_t e = b;
+	while (e < line.size() && (isalnum(line[e]) || line[e] == '_'))
+		e++;
+
+	const std::string name = line.substr(b, e - b);
+	return (name == "all") ? "" : name;
+}
+
+// Bindings lifted out of "layout(binding = N)" so the declaration survives on a
+// driver without GL_ARB_shading_language_420pack. They are re-applied through
+// the API after linking, which has been core since 3.1.
+static spring::unordered_map<std::string, int> glslUniformBlockBindings;
+static spring::unordered_map<std::string, int> glslSamplerBindings;
+
+const spring::unordered_map<std::string, int>& Shader::GetGlslUniformBlockBindings() { return glslUniformBlockBindings; }
+const spring::unordered_map<std::string, int>& Shader::GetGlslSamplerBindings() { return glslSamplerBindings; }
+
+// "layout(binding = N)" is GLSL 4.2 syntax (420pack). Apple stops at 4.1, so a
+// shader naming it fails to parse even after its #version is clamped - and the
+// failure cascades, because every uniform the block would have declared then
+// reads as undeclared too. Take the binding out of the source and remember it.
+//
+// SSBO blocks are deliberately left alone: "buffer" needs GL 4.3 regardless, so
+// there is nothing to rescue, and a non-literal binding (a #define) is skipped
+// rather than guessed at.
+static void RewriteGlslLayoutBindings(std::string* src)
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	for (size_t pos = src->find("layout"); pos != std::string::npos; pos = src->find("layout", pos)) {
+		const size_t lp = src->find('(', pos);
+		const size_t rp = (lp == std::string::npos) ? std::string::npos : src->find(')', lp);
+
+		if (rp == std::string::npos) break;
+
+		std::string quals = src->substr(lp + 1, rp - lp - 1);
+		const size_t bp = quals.find("binding");
+
+		if (bp == std::string::npos) { pos = rp; continue; }
+
+		// what is being declared? only "uniform" is rescuable here
+		size_t k = rp + 1;
+		while (k < src->size() && isspace((*src)[k])) k++;
+
+		if (src->compare(k, 7, "uniform") != 0) { pos = rp; continue; }
+
+		// the binding value has to be a literal
+		size_t vb = quals.find('=', bp);
+		if (vb == std::string::npos) { pos = rp; continue; }
+		vb++;
+		while (vb < quals.size() && isspace(quals[vb])) vb++;
+
+		size_t ve = vb;
+		while (ve < quals.size() && isdigit(quals[ve])) ve++;
+
+		if (ve == vb) { pos = rp; continue; } // a macro, not a number
+
+		const int binding = std::atoi(quals.substr(vb, ve - vb).c_str());
+
+		// the declared name: either a block (followed by '{') or a plain uniform
+		size_t nb = k + 7;
+		while (nb < src->size() && isspace((*src)[nb])) nb++;
+
+		// skip the type of a plain uniform ("sampler2D tex") to reach its name
+		size_t ne = nb;
+		while (ne < src->size() && (isalnum((*src)[ne]) || (*src)[ne] == '_')) ne++;
+
+		std::string name = src->substr(nb, ne - nb);
+
+		size_t after = ne;
+		while (after < src->size() && isspace((*src)[after])) after++;
+
+		if (after < src->size() && (*src)[after] != '{') {
+			// a plain uniform: what we read was the type, the name follows
+			size_t n2b = after;
+			size_t n2e = n2b;
+			while (n2e < src->size() && (isalnum((*src)[n2e]) || (*src)[n2e] == '_')) n2e++;
+
+			if (n2e > n2b) {
+				glslSamplerBindings[src->substr(n2b, n2e - n2b)] = binding;
+			}
+		} else {
+			glslUniformBlockBindings[name] = binding;
+		}
+
+		// drop the "binding = N" term, and the whole layout() if nothing is left
+		size_t cut0 = bp, cut1 = ve;
+		while (cut1 < quals.size() && (quals[cut1] == ' ' || quals[cut1] == '\t')) cut1++;
+		if (cut1 < quals.size() && quals[cut1] == ',') cut1++;
+		else if (cut0 > 0) { // trailing term: take the comma before it instead
+			size_t c = quals.rfind(',', bp);
+			if (c != std::string::npos) cut0 = c;
+		}
+
+		quals.erase(cut0, cut1 - cut0);
+
+		const bool empty = (quals.find_first_not_of(" \t,") == std::string::npos);
+		const size_t repB = empty ? pos : lp + 1;
+		const size_t repE = empty ? rp + 1 : rp;
+
+		src->replace(repB, repE - repB, empty ? "" : quals);
+		pos = repB;
+	}
+}
+
 static void ExtractGlslExtensions(std::string* src, std::string* extensions)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
@@ -430,23 +580,78 @@ namespace Shader {
 
 			// below 1.40 is rejected outright, as is the "compatibility" token;
 			// re-emitting just the number drops it and defaults to core
-			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0)
-				versionStr = "#version " + IntToString((verNum < 140) ? 150 : verNum);
+			if (sscanf(versionStr.c_str(), "#version %d", &verNum) == 1 && verNum > 0) {
+				if (verNum < 140)
+					verNum = 150;
+
+				// Content written for a newer GL than the driver has - BAR's GL4
+				// renderer is GLSL 420/430, and Apple froze GL at 4.1/GLSL 410 -
+				// fails on its version line alone, and then reports every later
+				// construct as a syntax error against the 110 it fell back to.
+				// Clamping lets everything whose only 4.2/4.3 dependency WAS the
+				// version line compile and run. Shaders that genuinely need a
+				// newer feature (SSBO, most of all) still fail, as they must.
+				const int maxVerNum = globalRenderingInfo.glslVersionNum;
+
+				if (maxVerNum >= 140 && verNum > maxVerNum) {
+					// once per distinct version, not once per shader: BAR brings
+					// hundreds and the interesting fact is that it happens at all
+					static spring::unsynced_set<int> logged;
+
+					if (logged.insert(verNum).second)
+						LOG("clamping #version %d to %d (driver maximum) for all such shaders", verNum, maxVerNum);
+
+					verNum = maxVerNum;
+				}
+
+				versionStr = "#version " + IntToString(verNum);
+			}
 		} else {
 			// a core profile requires an explicit #version
 			versionStr = "#version 150";
 		}
 
+		RewriteGlslLayoutBindings(&srcStr);
+
 		std::string prelude = GetGlslCompatPrelude(type, srcStr);
 		std::string extensionsStr;
 
 		// #extension must precede any non-preprocessor token, so it cannot stay
-		// below the prelude's declarations
-		if (!prelude.empty()) {
+		// below the prelude's declarations. Hoisting happens on a core profile
+		// regardless of whether there IS a prelude, because the directives also
+		// have to be filtered below.
+		{
 			ExtractGlslExtensions(&srcStr, &extensionsStr);
 
 			if (defsStr != nullptr)
 				ExtractGlslExtensions(defsStr, &extensionsStr);
+		}
+
+		// Drop directives naming extensions this driver does not advertise. With
+		// ": require" such a line is fatal by itself, which on a core profile
+		// means a shader can be rejected for naming something the version it
+		// compiles against already guarantees.
+		if (!extensionsStr.empty()) {
+			std::string kept;
+
+			for (size_t pos = 0; pos < extensionsStr.size(); ) {
+				const size_t eol = std::min(extensionsStr.find('\n', pos) + 1, extensionsStr.size());
+				const std::string line = extensionsStr.substr(pos, eol - pos);
+				const std::string name = GlslExtensionName(line);
+
+				if (name.empty() || GlslExtensionAdvertised(name)) {
+					kept += line;
+				} else {
+					static spring::unsynced_set<std::string> logged;
+
+					if (logged.insert(name).second)
+						LOG("dropping \"#extension %s\": not advertised by this driver", name.c_str());
+				}
+
+				pos = eol;
+			}
+
+			extensionsStr = std::move(kept);
 		}
 
 		EnsureEndsWith(&versionStr, "\n");
