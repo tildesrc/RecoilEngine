@@ -66,6 +66,12 @@ public:
 	uint32_t GetElemsCount() const { return ssbo->GetByteSize() / sizeof(MyDataType); }
 	constexpr uint32_t GetBindingIdx() const { return MATUNI_SSBO_BINDING_IDX; }
 	constexpr uint32_t GetElemCountIncr() const { return ELEM_COUNTI; }
+
+	// Buffer-texture mirror of the same data, for drivers without SSBO support.
+	// Zero when the SSBO path is in use, so a caller can tell which to expect.
+	// See devtools/macos-port/SSBO-FALLBACK.md.
+	uint32_t GetTexBufferID() const { return texBufTex; }
+	uint32_t GetTexBufferElems() const { return texBufElems; }
 public:
 	// Defs
 	size_t GetElemOffset(const UnitDef* def) const;
@@ -82,7 +88,16 @@ public:
 	size_t GetFeatureElemOffset(int32_t featureID) const;
 	size_t GetProjectileElemOffset(int32_t syncedProjectileID) const;
 private:
+	void InitTexBuffer();
+	void UpdateTexBuffer();
+	void KillTexBuffer();
+private:
 	std::unique_ptr<IStreamBuffer<MyDataType>> ssbo;
+
+	// GL_TEXTURE_BUFFER fallback, used instead of the SSBO where that is absent
+	uint32_t texBufVBO = 0u;
+	uint32_t texBufTex = 0u;
+	uint32_t texBufElems = 0u;
 private:
 	static constexpr const char* className = spring::TypeToCStr<MyClassName>();
 	static constexpr uint32_t MATUNI_SSBO_BINDING_IDX = 1;

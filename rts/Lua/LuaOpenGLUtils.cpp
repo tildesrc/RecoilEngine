@@ -26,6 +26,8 @@
 #include "Rendering/Textures/3DOTextureHandler.h"
 #include "Rendering/Textures/S3OTextureHandler.h"
 #include "Rendering/Env/Particles/ProjectileDrawer.h"
+#include "Rendering/ModelsDataUploader.h"
+#include "Rendering/Models/ModelsMemStorageDefs.h"
 #include "Sim/Features/FeatureDef.h"
 #include "Sim/Features/FeatureDefHandler.h"
 #include "Sim/Units/UnitDef.h"
@@ -69,6 +71,7 @@ LuaMatTexture::Type LuaOpenGLUtils::GetLuaMatTextureType(const std::string& name
 		case hashString("$shadow"      ): { return LuaMatTexture::LUATEX_SHADOWMAP;   } break;
 		case hashString("$shadow_color"): { return LuaMatTexture::LUATEX_SHADOWCOLOR; } break;
 		case hashString("$heightmap"   ): { return LuaMatTexture::LUATEX_HEIGHTMAP;   } break;
+		case hashString("$model_uniforms"): { return LuaMatTexture::LUATEX_MODELUNIFORMS; } break;
 
 		// SMF-maps
 		case hashString("$grass"  ): { return LuaMatTexture::LUATEX_SMF_GRASS; } break;
@@ -564,6 +567,12 @@ GLuint LuaMatTexture::GetTextureID() const
 				texID = hmTexID;
 		} break;
 
+		case LUATEX_MODELUNIFORMS: {
+			// zero where the SSBO path is in use, which is the signal to a
+			// shader that it should be reading the SSBO instead
+			texID = modelUniformsUploader.GetTexBufferID();
+		} break;
+
 
 		// map shading textures (TODO: diffuse? needs coors and {G,S}etMapSquareTexture rework)
 		case LUATEX_SMF_GRASS:
@@ -689,6 +698,10 @@ GLuint LuaMatTexture::GetTextureTarget() const
 		case LUATEX_SKY_REFLECTION: [[fallthrough]];
 		case LUATEX_SPECULAR: {
 			texType = GL_TEXTURE_CUBE_MAP_ARB;
+		} break;
+
+		case LUATEX_MODELUNIFORMS: {
+			texType = GL_TEXTURE_BUFFER;
 		} break;
 
 		case LUATEX_NONE:		  [[fallthrough]];
@@ -921,6 +934,12 @@ std::tuple<int, int, int> LuaMatTexture::GetSize() const
 					return ReturnHelper(hmTex.GetSize().x, hmTex.GetSize().y);
 		} break;
 
+		case LUATEX_MODELUNIFORMS: {
+			// x = how many objects the buffer currently holds, so Lua can size
+			// its own bookkeeping; y = texels per element
+			return ReturnHelper(modelUniformsUploader.GetTexBufferElems(), sizeof(ModelUniformData) / 16);
+		} break;
+
 
 		case LUATEX_SMF_GRASS:
 		case LUATEX_SMF_DETAIL:
@@ -1068,6 +1087,7 @@ void LuaMatTexture::Print(const string& indent) const
 		STRING_CASE(typeName, LUATEX_SHADOWMAP);
 		STRING_CASE(typeName, LUATEX_SHADOWCOLOR);
 		STRING_CASE(typeName, LUATEX_HEIGHTMAP);
+		STRING_CASE(typeName, LUATEX_MODELUNIFORMS);
 
 		STRING_CASE(typeName, LUATEX_SMF_GRASS);
 		STRING_CASE(typeName, LUATEX_SMF_DETAIL);

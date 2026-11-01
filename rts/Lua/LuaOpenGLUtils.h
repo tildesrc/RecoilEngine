@@ -48,6 +48,7 @@ class LuaMatTexture {
 			LUATEX_SHADOWMAP,
 			LUATEX_SHADOWCOLOR,
 			LUATEX_HEIGHTMAP,
+			LUATEX_MODELUNIFORMS,
 
 			// NOTE: must be in same order as MAP_BASE_*!
 			LUATEX_SMF_GRASS,
