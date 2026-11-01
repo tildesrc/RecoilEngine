@@ -6790,8 +6790,7 @@ int LuaOpenGL::GetFixedState(lua_State* L)
 			GLint stencilWriteMask;
 			glGetIntegerv(GL_STENCIL_WRITEMASK, &stencilWriteMask);
 
-			GLint stencilBits;
-			glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+			const GLint stencilBits = glSpringGetStencilBits();
 
 			GLint stencilValueMask;
 			glGetIntegerv(GL_STENCIL_VALUE_MASK, &stencilValueMask);

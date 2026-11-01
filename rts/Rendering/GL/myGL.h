@@ -123,6 +123,13 @@ unsigned int LoadFragmentProgram(const char* filename);
 // glLineWidth directly.
 void glSpringLineWidth(float width);
 
+// Depth/stencil bit counts of the DEFAULT framebuffer. glGetIntegerv with
+// GL_STENCIL_BITS is part of the deprecated framebuffer-query mechanism and is
+// gone from a core profile, where it raises GL_INVALID_ENUM and leaves the
+// caller's variable untouched - so a plain query decides things on whatever was
+// on the stack. Routes to glGetFramebufferAttachmentParameteriv on core.
+GLint glSpringGetStencilBits();
+
 // glPushAttrib/glPopAttrib are removed in a core profile, where they are
 // silently no-ops - so a pass that changes render state never has it restored
 // and the change leaks into every later pass. These emulate the subset of

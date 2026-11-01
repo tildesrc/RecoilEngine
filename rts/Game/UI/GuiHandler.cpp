@@ -90,11 +90,13 @@ CGuiHandler::CGuiHandler()
 	autoShowMetal = mapInfo->gui.autoShowMetal;
 	useStencil = false;
 
-	if (GLAD_GL_ARB_depth_clamp) {
-		GLint stencilBits;
-		glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
-		useStencil = (stencilBits >= 1);
-	}
+	if (GLAD_GL_ARB_depth_clamp)
+		useStencil = (glSpringGetStencilBits() >= 1);
+
+	// the area-command circle takes a completely different code path on each
+	// side of this, so say which one out loud
+	LOG("[GuiHandler] stencilBits=%d useStencil=%d (area-command circles use %s)",
+		glSpringGetStencilBits(), int(useStencil), useStencil? "the stencil volume": "a triangle fan");
 
 	failedSound = sound->GetDefSoundId("FailedCommand");
 }

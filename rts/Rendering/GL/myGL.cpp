@@ -890,6 +890,30 @@ void glSpringPopAttrib()
 		GLCompat::SetCurrentColor(st.curColor);
 }
 
+GLint glSpringGetStencilBits()
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	GLint bits = 0;
+
+	if (!globalRenderingInfo.glContextIsCore) {
+		glGetIntegerv(GL_STENCIL_BITS, &bits);
+		return bits;
+	}
+
+	// GL_STENCIL_BITS does not exist in a core profile. Ask the default
+	// framebuffer's stencil attachment instead; an absent attachment reports a
+	// size of zero, which is the answer callers want anyway.
+	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL,
+		GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &bits);
+
+	// a bound FBO without a stencil attachment also answers zero, so this is
+	// only meaningful for the default framebuffer - which is where both callers
+	// ask from, and where the window's own stencil buffer lives
+	glClearErrors("GL", __func__, false);
+	return bits;
+}
+
 void glSpringLineWidth(float width)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
