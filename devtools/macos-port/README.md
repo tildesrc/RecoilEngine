@@ -238,3 +238,29 @@ does not exist and the loader cannot use it. Getting a shared build (from the
 Vulkan SDK, or built from source) would be needed to tell whether it satisfies
 more of Zink's requirements than KosmicKrisp does. Until that is measured, the
 spike has only ruled out one of the two drivers.
+
+## Probing where a Lua quad lands
+
+`SPRING_DBG_TEXRECT=1` makes `gl.TexRect` log its vertices together with the
+transform they will be drawn under:
+
+```
+[TEXRECT] quad=(-0.014,0.000)-(1.014,1.000) mode=6 xf: sx=2.00000 sy=2.00000 tx=-1.000 ty=-1.000 haveProj=1
+```
+
+Where a quad ends up is the product of the two, and reading either alone has
+been misleading repeatedly on this port - content in 0..1 coordinates drawn
+under a 0..vsx transform is invisible rather than wrong-looking, and the
+coordinates on their own look perfectly reasonable. `sx=2 tx=-1` is a 0..1
+space; `sx=3.33 tx=-2850` is the pixel-space perspective one that `DRAW_SCREEN`
+installs. `mode` is the `LuaOpenGL::DrawMode` enum.
+
+This is what found the load-screen bug: BAR's load screen draws a 0..1
+background quad, `ClearScreen()` establishes that space with
+`gluOrtho2D(0, 1, 0, 1)`, and the core-profile branch of `ClearScreen()` had
+been skipping it - so the quad inherited `DRAW_SCREEN`'s pixel matrices and came
+out one pixel wide. Note that `CLuaIntro::DrawLoadScreen` calls
+`EnableCommon(DRAW_SCREEN)` directly rather than `EnableDrawScreenCommon()`, so
+it never gets `SetupScreenMatrices()`: the intro and LuaUI share one draw mode
+with two different coordinate conventions, and `ClearScreen()` is what
+distinguishes them.

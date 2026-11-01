@@ -29,6 +29,12 @@ class LuaOpenGL {
 		};
 
 	public:
+		// Installs a 0..1 orthographic projection on the emulated matrix stack,
+		// mirroring the gluOrtho2D(0, 1, 0, 1) that ClearScreen() applies on a
+		// compatibility profile. No-op outside a core profile, where that call
+		// does the job itself.
+		static void InstallScreenOrtho01();
+
 		static void Init();
 		static void Free();
 

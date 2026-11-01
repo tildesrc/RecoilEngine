@@ -9,6 +9,7 @@
 
 #include "myGL.h"
 #include "Rendering/GL/CompatPipeline.h"
+#include "Lua/LuaOpenGL.h"
 #include "VertexArray.h"
 #include "glxHandler.h"
 #include "Rendering/GlobalRendering.h"
@@ -564,6 +565,9 @@ void ClearScreen()
 		gluOrtho2D(0, 1, 0, 1);
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
+	} else {
+		// the same 0..1 projection, on the stack Lua actually draws through
+		LuaOpenGL::InstallScreenOrtho01();
 	}
 
 	glEnable(GL_BLEND);

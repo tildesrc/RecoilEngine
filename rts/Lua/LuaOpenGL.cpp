@@ -645,6 +645,23 @@ namespace LuaMatrixStack {
 // exactly where the fixed-function modelview sat. Text needs the same matrix as
 // geometry: a widget that sets up 0..1 screen coordinates with gl.Scale expects
 // its gl.Text to land in that space too.
+// ClearScreen() sets up a 0..1 projection on a compatibility profile, and the
+// passes that follow it - the load screen, the menus, the pre-game screen -
+// draw in that space. A core profile has no fixed-function stack for it to land
+// on, so the same projection has to go onto the emulated one or those passes
+// inherit DRAW_SCREEN's pixel-space matrices instead: BAR's load screen draws a
+// 0..1 background quad, which then came out one pixel wide.
+void LuaOpenGL::InstallScreenOrtho01()
+{
+	if (!LuaMatrixStack::Emulated())
+		return;
+
+	LuaMatrixStack::Reset();
+	LuaMatrixStack::SetMode(GL_PROJECTION);
+	LuaMatrixStack::Load(CMatrix44f::ClipOrthoProj01(globalRendering->supportClipSpaceControl * 1.0f));
+	LuaMatrixStack::SetMode(GL_MODELVIEW);
+}
+
 CMatrix44f LuaOpenGL::GetDrawTransform()
 {
 	CMatrix44f transform;
@@ -3384,6 +3401,16 @@ int LuaOpenGL::TexRect(lua_State* L)
 	const float x2 = luaL_checkfloat(L, 3);
 	const float y2 = luaL_checkfloat(L, 4);
 
+	// SPRING_DBG_TEXRECT: print the quad together with the transform it will be
+	// drawn under, so "0..1 coords in a 0..vsx space" is visible rather than
+	// inferred. Where a quad lands is the product of the two and reading either
+	// alone has been misleading more than once.
+	if (getenv("SPRING_DBG_TEXRECT") != nullptr) {
+		const CMatrix44f xf = GetDrawTransform();
+		LOG_L(L_WARNING, "[TEXRECT] quad=(%.3f,%.3f)-(%.3f,%.3f) mode=%d xf: sx=%.5f sy=%.5f tx=%.3f ty=%.3f haveProj=%d",
+			x1, y1, x2, y2, (int)GetDrawMode(), xf.m[0], xf.m[5], xf.m[12], xf.m[13], (int)LuaMatrixStack::HasProjection());
+	}
+
 	// Spring's textures get loaded with a vertical flip
 	// We change that for the default settings.
 
@@ -4865,6 +4892,7 @@ int LuaOpenGL::TextureInfo(lua_State* L)
 
 	lua_createtable(L, 0, 5);
 	const auto [xsize, ysize, zsize] = tex.GetSize();
+
 	LuaPushNamedNumber(L, "xsize", xsize);
 	LuaPushNamedNumber(L, "ysize", ysize);
 	LuaPushNamedNumber(L, "zsize", zsize);
