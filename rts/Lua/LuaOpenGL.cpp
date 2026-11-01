@@ -5811,6 +5811,7 @@ int LuaOpenGL::SwapBuffers(lua_State* L)
  */
 int LuaOpenGL::Translate(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 	const float x = luaL_checkfloat(L, 1);
@@ -5834,6 +5835,7 @@ int LuaOpenGL::Translate(lua_State* L)
  */
 int LuaOpenGL::Scale(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 	const float x = luaL_checkfloat(L, 1);
@@ -5861,6 +5863,7 @@ int LuaOpenGL::Scale(lua_State* L)
  */
 int LuaOpenGL::Rotate(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 	const float r = luaL_checkfloat(L, 1);
@@ -5891,6 +5894,7 @@ int LuaOpenGL::Rotate(lua_State* L)
  */
 int LuaOpenGL::Ortho(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 	const float left   = luaL_checknumber(L, 1);
@@ -6103,6 +6107,7 @@ int LuaOpenGL::ClipDistance(lua_State* L) {
  */
 int LuaOpenGL::MatrixMode(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 	GLenum mode = (GLenum)luaL_checkint(L, 1);
@@ -6122,6 +6127,7 @@ int LuaOpenGL::MatrixMode(lua_State* L)
  */
 int LuaOpenGL::LoadIdentity(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6184,6 +6190,7 @@ int LuaOpenGL::LoadIdentity(lua_State* L)
  */
 int LuaOpenGL::LoadMatrix(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6243,6 +6250,7 @@ int LuaOpenGL::LoadMatrix(lua_State* L)
  */
 int LuaOpenGL::MultMatrix(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6278,6 +6286,7 @@ int LuaOpenGL::MultMatrix(lua_State* L)
  */
 int LuaOpenGL::PushMatrix(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6299,6 +6308,7 @@ int LuaOpenGL::PushMatrix(lua_State* L)
  */
 int LuaOpenGL::PopMatrix(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6327,6 +6337,7 @@ int LuaOpenGL::PopMatrix(lua_State* L)
  */
 int LuaOpenGL::PushPopMatrix(lua_State* L)
 {
+	LuaDListRecorder::NoteMatrix();
 	CheckDrawingEnabled(L, __func__);
 	CondWarnDeprecatedGL(L, __func__);
 
@@ -6848,7 +6859,7 @@ int LuaOpenGL::CreateList(lua_State* L)
 		// the frame it belongs to); the function is kept and re-run on CallList
 		// as before, which is what actually puts pixels on screen.
 		{
-			LuaDListOps discarded;
+			auto recorded = std::make_shared<LuaDListOps>();
 
 			const bool origDrawingEnabled = IsDrawingEnabled(L);
 			SetDrawingEnabled(L, true);
@@ -6863,8 +6874,10 @@ int LuaOpenGL::CreateList(lua_State* L)
 			// depth and reports underflow
 			SMatrixStateData prevMSD = GetLuaContextData(L)->glMatrixTracker.PushMatrixState(true);
 
-			LuaDListRecorder::Begin(&discarded);
+			LuaDListRecorder::Begin(recorded.get());
 			const int error = lua_pcall(L, (args - 1), 0, 0);
+			const bool cannotReplay = LuaDListRecorder::SawText() || LuaDListRecorder::SawMatrix()
+				|| (getenv("SPRING_DBG_DL_NOREPLAY") != nullptr);
 			LuaDListRecorder::End();
 
 			GetLuaContextData(L)->glMatrixTracker.PopMatrixState(prevMSD, false);
@@ -6876,6 +6889,12 @@ int LuaOpenGL::CreateList(lua_State* L)
 				LOG_L(L_ERROR, "gl.CreateList: error(%i) = %s", error, lua_tostring(L, -1));
 				lua_pop(L, 1);
 				lua_pushnumber(L, 0);
+				return 1;
+			}
+
+			if (!cannotReplay) {
+				CLuaDisplayLists& recordedLists = CLuaHandle::GetActiveDisplayLists(L);
+				lua_pushnumber(L, recordedLists.NewRecordedList(std::move(recorded)));
 				return 1;
 			}
 		}
@@ -6948,6 +6967,15 @@ int LuaOpenGL::CallList(lua_State* L)
 	const CLuaDisplayLists& displayLists = CLuaHandle::GetActiveDisplayLists(L);
 
 	if (globalRenderingInfo.glContextIsCore) {
+		if (const LuaDListOps* ops = displayLists.GetOps(listIndex); ops != nullptr) {
+			for (const LuaDListOp& op: *ops) {
+				glBindTexture(GL_TEXTURE_2D, op.texture);
+				LuaImmediate::SubmitXf(op.mode, op.verts, op.texture, op.alphaCtrl, op.xf);
+			}
+
+			return 0;
+		}
+
 		const int callRef = displayLists.GetLuaFuncRef(listIndex);
 
 		if (callRef != LUA_NOREF) {

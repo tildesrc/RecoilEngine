@@ -49,12 +49,14 @@ using LuaDListOpsPtr = std::shared_ptr<LuaDListOps>;
 namespace LuaDListRecorder {
 	inline LuaDListOps* target = nullptr;
 	inline bool sawText = false;
+	inline bool sawMatrix = false;
 
 	inline bool Recording() { return target != nullptr; }
 
 	inline void Begin(LuaDListOps* ops) {
 		target = ops;
 		sawText = false;
+		sawMatrix = false;
 	}
 
 	inline void End() { target = nullptr; }
@@ -62,6 +64,13 @@ namespace LuaDListRecorder {
 	// a print was suppressed during the capture, so the recording is unusable
 	inline void NoteText() { sawText = true; }
 	inline bool SawText() { return sawText; }
+
+	// A list is also a legitimate way to carry matrix state: BA's UI framework
+	// installs its whole projection in one. Replaying only the geometry throws
+	// those calls away, and everything drawn afterwards silently uses the wrong
+	// transform - so such a list has to be re-run instead.
+	inline void NoteMatrix() { sawMatrix = true; }
+	inline bool SawMatrix() { return sawMatrix; }
 
 	inline void Add(LuaDListOp&& op) {
 		if (target != nullptr)
