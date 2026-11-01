@@ -6,6 +6,7 @@
 #include "System/float4.h"
 #include "System/Matrix44f.h"
 #include "System/Log/ILog.h"
+#include "Rendering/GL/myGL.h"
 #include "System/SpringMath.h"
 #include "System/TimeProfiler.h"
 #include "Sim/Misc/LosHandler.h"
@@ -326,8 +327,67 @@ size_t TransformsUploader::GetProjectileElemOffset(int32_t syncedProjectileID) c
 
 ////////////////////////////////////////////////////////////////////
 
+// SPRING_DBG_TEXBUF: feasibility probe for exposing this uploader's data as a
+// buffer texture instead of an SSBO. A buffer texture is core since GL 3.1, so
+// it is the one route to a large dynamically-indexed array on a 4.1 driver -
+// the thing BAR's icon and health-bar shaders need and cannot have. Measures
+// whether the pieces actually exist here rather than assuming they do.
+static void ProbeTextureBufferFeasibility(uint32_t elemCount, uint32_t elemSize)
+{
+	// drain anything already queued, or this attributes someone else's error to
+	// our query - which it did on the first run of this probe
+	while (glGetError() != GL_NO_ERROR) {}
+
+	GLint maxTexels = 0;
+	glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxTexels);
+	const bool limitQueryOK = (glGetError() == GL_NO_ERROR);
+
+	// is the SSBO target itself usable? it is a 4.3 enum, so this should fail -
+	// a real implementation would have to create the buffer another way
+	GLuint probe = 0;
+	glGenBuffers(1, &probe);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, probe);
+	const GLenum ssboTargetErr = glGetError();
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	glGetError();
+
+	// now the route we would actually take
+	const uint32_t byteSize = elemCount * elemSize;
+	glBindBuffer(GL_TEXTURE_BUFFER, probe);
+	glBufferData(GL_TEXTURE_BUFFER, byteSize, nullptr, GL_DYNAMIC_DRAW);
+	const GLenum allocErr = glGetError();
+
+	GLuint tex = 0;
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_BUFFER, tex);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, probe);
+	const GLenum texBufErr = glGetError();
+
+	const uint32_t texelsNeeded = byteSize / 16;
+
+	LOG("[TEXBUF] GL_MAX_TEXTURE_BUFFER_SIZE = %d texels (query %s)", maxTexels, limitQueryOK ? "ok" : "FAILED");
+	LOG("[TEXBUF] glBindBuffer(GL_SHADER_STORAGE_BUFFER) -> 0x%x %s", ssboTargetErr,
+		(ssboTargetErr == GL_NO_ERROR) ? "(usable!)" : "(rejected, as expected on 4.1)");
+	LOG("[TEXBUF] glBufferData(GL_TEXTURE_BUFFER, %u bytes) -> 0x%x", byteSize, allocErr);
+	LOG("[TEXBUF] glTexBuffer(GL_RGBA32F) -> 0x%x %s", texBufErr,
+		(texBufErr == GL_NO_ERROR) ? "WORKS" : "FAILED");
+	LOG("[TEXBUF] need %u texels for %u elements of %u bytes -> headroom %.1fx; max elements = %u",
+		texelsNeeded, elemCount, elemSize,
+		texelsNeeded ? double(maxTexels) / double(texelsNeeded) : 0.0,
+		(elemSize && maxTexels > 0) ? uint32_t((uint64_t(maxTexels) * 16) / elemSize) : 0u);
+
+	glBindTexture(GL_TEXTURE_BUFFER, 0);
+	glDeleteTextures(1, &tex);
+	glBindBuffer(GL_TEXTURE_BUFFER, 0);
+	glDeleteBuffers(1, &probe);
+	glClearErrors("TEXBUF", __func__, false);
+}
+
 void ModelUniformsUploader::Init()
 {
+	if (getenv("SPRING_DBG_TEXBUF") != nullptr)
+		ProbeTextureBufferFeasibility(ELEM_COUNT0, sizeof(MyDataType));
+
 	if (!globalRendering->haveGL4)
 		return;
 

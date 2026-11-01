@@ -264,3 +264,47 @@ out one pixel wide. Note that `CLuaIntro::DrawLoadScreen` calls
 it never gets `SetupScreenMatrices()`: the intro and LuaUI share one draw mode
 with two different coordinate conventions, and `ClearScreen()` is what
 distinguishes them.
+
+## Can the SSBO data be exposed as a buffer texture? (measured 2026-11-01)
+
+Yes, and the engine half is contained. `SPRING_DBG_TEXBUF=1` runs the probe in
+`ModelUniformsUploader::Init`:
+
+```
+[TEXBUF] GL_MAX_TEXTURE_BUFFER_SIZE = 268435456 texels (query ok)
+[TEXBUF] glBindBuffer(GL_SHADER_STORAGE_BUFFER) -> 0x500 (rejected, as expected on 4.1)
+[TEXBUF] glBufferData(GL_TEXTURE_BUFFER, 524288 bytes) -> 0x0
+[TEXBUF] glTexBuffer(GL_RGBA32F) -> 0x0 WORKS
+[TEXBUF] need 32768 texels for 4096 elements of 128 bytes -> headroom 8192.0x; max elements = 33554432
+```
+
+Four findings:
+
+- **`glTexBuffer` works.** It is core since GL 3.1, and the driver accepts it.
+  This is the one route to a large, dynamically-indexed array on a 4.1 context.
+- **Size is a non-issue.** `ModelUniformData` is 128 bytes and the uploader
+  starts at 4096 elements, so 32,768 `RGBA32F` texels against a limit of
+  268,435,456 - room for 33.5 million objects.
+- **`GL_SHADER_STORAGE_BUFFER` is not a usable buffer target here** (0x500,
+  `GL_INVALID_ENUM`; it is a 4.3 enum). A buffer-texture path has to create its
+  buffer under a different target - `GL_TEXTURE_BUFFER` worked.
+- **The CPU-side data is already maintained.** `UpdateObjectUniforms` in
+  `ModelDrawerData.h` has no `haveGL4` gate, so health, maxHealth, drawPos,
+  speed, teamID and drawFlag are written into `modelUniformsStorage` every frame
+  on macOS right now. Only the GPU upload is gated off.
+
+The SSBO path cannot be disturbed by adding this: `ModelUniformsUploader::Init`
+returns early when `!haveGL4` so `ssbo` stays null, and `UpdateCommon` no-ops on
+a null buffer. A parallel `!haveGL4` branch runs where the SSBO path does
+nothing at all. (One wrinkle for whoever writes it: that early-out calls
+`ul.ResetNeedUpdateAll()`, discarding the dirty-region tracking a texture-buffer
+path would want to keep.)
+
+What is NOT cheap is the content side. In the shaders, `uni[i].health` becomes
+manual offset arithmetic into a flat texel array - struct field access is lost,
+`std140` padding has to be tracked by hand, and every shader needs converting
+individually. `TransformsUploader` (binding 0) is also harder than
+`ModelUniformsUploader` (binding 1): it uses triple buffering, and selecting one
+segment of a ring needs `glTexBufferRange`, which is 4.3. Binding 1 uses
+`numBuffers = 1`, so whole-buffer `glTexBuffer` covers exactly the right data -
+and binding 1 is the one the icon and health-bar shaders read.
