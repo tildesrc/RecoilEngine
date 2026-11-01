@@ -1,0 +1,17 @@
+--- a/LuaUI/Widgets/api_unit_tracker_gl4.lua
++++ b/LuaUI/Widgets/api_unit_tracker_gl4.lua
+@@ -12,7 +12,13 @@
+ 		layer = -828888,
+ 		handler = true,
+ 		enabled = true,
+-		depends = { "gl4" },
++		-- GL 4.1 override: this widget's job is maintaining visibleUnits and
++		-- alliedUnits, which is pure Lua. Every GL4 use - initGL4 included - sits
++		-- behind "if debugdrawvisible then", which defaults to false. Declaring a
++		-- gl4 dependency therefore disabled the whole API wherever GL4 is absent,
++		-- starving every consumer (health bars, orb effects, jammed units, sensor
++		-- ranges, energy icons, ...) for an opt-in debug overlay nobody enabled.
++		depends = {},
+ 	}
+ end
+ 

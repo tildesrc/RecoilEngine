@@ -352,3 +352,58 @@ access is identical.
   authority for the layout table above. **If that struct changes, the table and
   the macros are wrong and nothing will warn you.** The `static_assert` on
   `sizeof(ModelUniformData) == 128` is the only tripwire.
+
+## The override archive: how the BAR patches are deployed
+
+The blocker above is fixed locally by a **`.sdd` override archive** rather than
+write-dir files, because only an archive widget escapes BAR's user-widget
+sandbox. `devtools/macos-port/bar-overrides/` holds the source of truth:
+
+```
+modinfo.lua                  the archive manifest, copied verbatim
+unit-tracker-ungate.patch    drops depends = {"gl4"} from the tracker API
+healthbars-widget.patch      binds $model_uniforms, declares the sampler
+healthbars-nogs-vert.patch   the SSBO -> buffer-texture conversion
+```
+
+Deploy by building `<write-dir>/games/bar-macos.sdd/`:
+
+```
+games/bar-macos.sdd/
+  modinfo.lua
+  LuaUI/Widgets/api_unit_tracker_gl4.lua
+  LuaUI/Widgets/gui_healthbars_gl4.lua
+  LuaUI/Shaders/HealthbarsGL4_nogs.vert.glsl
+```
+
+Extract each original from the BAR archive, apply its patch, and place it at the
+same path. `modinfo.lua` declares `depend` on the stock BAR archive, so BAR is
+still loaded underneath and only these files are shadowed.
+
+Three things that cost time getting this working:
+
+- **The gametype string is `name .. " " .. version`,** not `name`. This archive
+  registers as **`BAR macOS overrides 1`**; a start script saying
+  `gametype=BAR macOS overrides` fails with `Dependent archive ... not found`,
+  which reads as if the archive were missing rather than misnamed. Check
+  `cache/ArchiveCache22.lua` for the registered `name` when in doubt.
+- **`depend` must name the BAR archive exactly**, version included
+  (`Beyond All Reason test-31765-420384b`). It changes whenever BAR updates, so
+  this is the line that will need maintaining.
+- **The archive cache can hide a modinfo mistake.** `cache/ArchiveCache22.lua`
+  is keyed on mtime; if a scan looks like it did nothing, move that file aside
+  and re-run.
+
+### Known limitation
+
+A game started from the **Chobby menu** uses BAR's own gametype and therefore
+**does not load this archive**. Only launches that name the gametype explicitly
+(a start script) get the overrides. So menu play still needs the upstream BAR
+fix for the tracker gate - the archive is for testing and for scripted games.
+
+### Verified
+
+With the archive in use: no `Missing capabilities: API Unit Tracker` line, no
+`Unit Tracker API unavailable` from any consumer, the converted NoGS shader
+compiles in 10 ms, and the health-bar widget submits real work -
+`HBPROBE, 12, 0`, twelve instances - where it submitted zero before.
