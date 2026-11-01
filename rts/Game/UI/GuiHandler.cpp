@@ -3,6 +3,7 @@
 #include "GuiHandler.h"
 
 #include "Rendering/GL/CompatPipeline.h"
+#include "Rendering/GlobalRenderingInfo.h"
 
 #include <Rml/Backends/RmlUi_Backend.h>
 #include "CommandColors.h"
@@ -3568,6 +3569,38 @@ void CGuiHandler::DrawMapStuff(bool onMiniMap)
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDisable(GL_ALPHA_TEST);
 	}
+
+	// Everything below draws in WORLD space, and most of it through
+	// GLCompat::Begin/End - which transforms by the emulated fixed-function
+	// matrices. In a compatibility profile those already hold the camera's,
+	// because the world pass loaded them with glLoadMatrixf; in a core profile
+	// that call does nothing, so they are identity here and the geometry lands
+	// far outside the frustum. The area-command circle was the visible case: its
+	// cylinder is drawn only to increment the stencil, so an offscreen cylinder
+	// left the stencil empty and nothing was shown at all, with no GL error.
+	const bool pushedWorldMatrix = (!onMiniMap && globalRenderingInfo.glContextIsCore);
+
+	if (pushedWorldMatrix) {
+		GLCompat::MatrixMode(GL_PROJECTION);
+		GLCompat::PushMatrix();
+		GLCompat::LoadMatrixf(camera->GetProjectionMatrix());
+		GLCompat::MatrixMode(GL_MODELVIEW);
+		GLCompat::PushMatrix();
+		GLCompat::LoadMatrixf(camera->GetViewMatrix());
+	}
+
+	struct ScopedWorldMatrix {
+		bool active;
+		~ScopedWorldMatrix() {
+			if (!active)
+				return;
+
+			GLCompat::MatrixMode(GL_PROJECTION);
+			GLCompat::PopMatrix();
+			GLCompat::MatrixMode(GL_MODELVIEW);
+			GLCompat::PopMatrix();
+		}
+	} scopedWorldMatrix{pushedWorldMatrix};
 
 	float3 tracePos;
 	float3 traceDir;
