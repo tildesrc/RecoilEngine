@@ -29,6 +29,7 @@
 	#include <climits> // for PATH_MAX
 
 	#include <mach-o/dyld.h>
+	#include <sys/sysctl.h> // for the processor name, which has no /proc here
 
 #elif defined( __FreeBSD__)
 	#include <sys/sysctl.h>
@@ -434,10 +435,21 @@ namespace Platform
 	std::string GetHardwareStr() {
 		std::string ret;
 
-		FILE* cpuInfo = fopen("/proc/cpuinfo", "r");
-
 		char buf[1024];
 		char tmp[1024];
+
+	#if defined(__APPLE__)
+		// there is no /proc/cpuinfo here, so the processor half of the string
+		// was simply missing - leaving no "; " separator, which anything
+		// parsing the two halves apart trips over
+		{
+			size_t brandLen = sizeof(buf);
+
+			if (sysctlbyname("machdep.cpu.brand_string", buf, &brandLen, nullptr, 0) == 0 && buf[0] != '\0')
+				ret += (std::string(buf) + "; ");
+		}
+	#else
+		FILE* cpuInfo = fopen("/proc/cpuinfo", "r");
 
 		if (cpuInfo != nullptr) {
 			while (fgets(buf, sizeof(buf), cpuInfo) != nullptr) {
@@ -455,6 +467,7 @@ namespace Platform
 
 			fclose(cpuInfo);
 		}
+	#endif
 
 		uint64_t totalRam = TotalRAM();
 		sprintf(tmp, "%lu", totalRam / (1024*1024));
