@@ -8,6 +8,50 @@ Read this before converting a shader. The engine side is already done; what
 remains is per-shader work, and the layout table below is the part you cannot
 guess.
 
+## STOP: read this before converting anything else
+
+**Converting a shader is not enough to make its feature appear.** Most of these
+widgets get their unit list from `api_unit_tracker_gl4.lua`, which declares
+`depends = { "gl4" }` and is therefore refused at load wherever GL4 is missing.
+Its consumers then have no units to draw and submit zero instances, no matter
+how correct their shader is:
+
+```
+Missing capabilities:  API Unit Tracker DEVMODE GL4. Disabling.
+Unit Tracker API unavailable, exiting Orb GL4
+Jammed Units Highlight: Unit Tracker API unavailable, exiting
+```
+
+That gate is **wrong**, not a real requirement. The widget's job is maintaining
+`WG.unittrackerapi.visibleUnits` / `alliedUnits`, which is pure Lua; every GL4
+use in the file, `initGL4()` included, sits behind `if debugdrawvisible then`,
+and that defaults to `false`. One unnecessary dependency line disables an API
+that health bars, orb effects, jammed units, sensor ranges, energy icons,
+firestate icons, idle-builder icons, ground AO plates, defense range and the
+outline shader all read.
+
+**It cannot be fixed from the write dir.** Dropping a corrected copy in
+`<write-dir>/LuaUI/Widgets/` loads, but BAR sandboxes `widgetHandler` for user
+widgets and the tracker needs to call `widgetHandler:VisibleUnitsChanged(...)`
+to fan out to consumers:
+
+```
+Warning: API Unit Tracker DEVMODE GL4: widgetHandler.VisibleUnitsChanged is not available to user widgets
+```
+
+Only an archive ("mod") widget may register custom callins. So the options are:
+
+1. **Report it upstream to BAR** — the honest fix, a one-line change to that
+   file, and it helps every GL4-less machine, not just macOS.
+2. **Ship a mutator `.sdd`** that depends on the BAR archive and shadows the
+   file, so the override counts as an archive widget. Works, but a mutator has
+   its own gametype string, so games started from the Chobby menu would not use
+   it — only scripted launches would.
+
+Until one of those happens, a converted shader can be verified as *compiling*
+but not as *drawing*. Convert against that expectation, and do not read an empty
+screen as a broken conversion.
+
 ## The problem in one paragraph
 
 BAR draws health bars, state icons, selection markers and similar overlays with

@@ -486,9 +486,14 @@ void ModelUniformsUploader::UpdateTexBuffer()
 
 				const bool match = (gpu.health == data[i].health && gpu.maxHealth == data[i].maxHealth && gpu.id == data[i].id);
 
-				LOG("[TEXBUF] elem %zu: cpu(id=%u hp=%.1f/%.1f) gpu(id=%u hp=%.1f/%.1f) -> %s",
+				const bool posMatch = (gpu.drawPos.x == data[i].drawPos.x && gpu.drawPos.z == data[i].drawPos.z);
+
+				LOG("[TEXBUF] elem %zu: cpu(id=%u hp=%.1f/%.1f pos=%.0f,%.0f,%.0f) gpu(id=%u hp=%.1f/%.1f pos=%.0f,%.0f,%.0f) -> %s pos:%s",
 					i, data[i].id, data[i].health, data[i].maxHealth,
-					gpu.id, gpu.health, gpu.maxHealth, match ? "MATCH" : "MISMATCH");
+					data[i].drawPos.x, data[i].drawPos.y, data[i].drawPos.z,
+					gpu.id, gpu.health, gpu.maxHealth,
+					gpu.drawPos.x, gpu.drawPos.y, gpu.drawPos.z,
+					match ? "MATCH" : "MISMATCH", posMatch ? "MATCH" : "MISMATCH");
 
 				reported++;
 				break;
