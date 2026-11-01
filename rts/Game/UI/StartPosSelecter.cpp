@@ -95,9 +95,14 @@ bool CStartPosSelecter::MousePress(int x, int y, int button)
 	if (button != SDL_BUTTON_LEFT)
 		return false;
 
-	if (modInfo.useStartPositionSelecter == false) {
+	// A game turns this off when it selects start positions in Lua itself, as
+	// BAR does. But BAR's handler lives in map_startbox.lua, which declares
+	// depends = {"gl4"} and is refused at load where GL4 is unavailable - and
+	// then nothing handles the click at all, so a player simply cannot place
+	// their commander. Take it back exactly when the content's own handler
+	// cannot run, matching the DrawStartBox fallback in Draw().
+	if (!modInfo.useStartPositionSelecter && globalRendering->haveGL4)
 		return false;
-	}
 
 	// Not ready to process mouse clicks yet. Pass.
 	if (!game->IsDoneLoading())
