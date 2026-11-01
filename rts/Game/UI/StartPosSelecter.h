@@ -22,6 +22,7 @@ public:
 
 private:
 	void DrawStartBox() const;
+	void DrawStartMarker() const;
 
 private:
 	TRectangle<float> readyBox;

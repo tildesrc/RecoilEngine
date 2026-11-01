@@ -146,8 +146,10 @@ void CStartPosSelecter::Draw()
 	// it at all, leaving a player with no way to see where they may start. Fall
 	// back to the engine's own box exactly then, so a GL4-capable machine keeps
 	// the content's version and is untouched.
-	if (!globalRendering->haveGL4)
+	if (!globalRendering->haveGL4) {
 		DrawStartBox();
+		DrawStartMarker();
+	}
 
 	if (!showReadyBox)
 		return;
@@ -247,6 +249,55 @@ void CStartPosSelecter::DrawStartBox() const
 		addWall({bx + (a    ) * dx, 0.0f, by + dy * 10.0f  }, {bx + (a + 1) * dx, 0.0f, by + dy * 10.0f  });
 		addWall({bx               , 0.0f, by + dy * (a    )}, {bx               , 0.0f, by + dy * (a + 1)});
 		addWall({bx + dx * 10.0f  , 0.0f, by + dy * (a    )}, {bx + dx * 10.0f  , 0.0f, by + dy * (a + 1)});
+	}
+
+	glEnable(GL_DEPTH_TEST);
+	sh.Enable();
+
+	if (globalRenderingInfo.glContextIsCore) {
+		if (const CCamera* cam = CCameraHandler::GetActiveCamera(); cam != nullptr)
+			sh.SetUniformMatrix4x4("transformMatrix", false, &cam->GetViewProjectionMatrix().m[0]);
+	}
+
+	rb.DrawElements(GL_TRIANGLES);
+	sh.Disable();
+}
+
+
+// Where the player has clicked. Nothing in the engine has ever drawn this - the
+// marker was always the content's job, and in BAR it comes from map_startbox.lua
+// and the DrawUnitShape GL4 ghost, both of which need GL4. Without it a player
+// can place a start position but gets no confirmation of where it went.
+void CStartPosSelecter::DrawStartMarker() const
+{
+	RECOIL_DETAILED_TRACY_ZONE;
+
+	if (!startPosSet)
+		return;
+
+	const float3 base(setStartPos.x, CGround::GetHeightAboveWater(setStartPos.x, setStartPos.z, false), setStartPos.z);
+
+	static constexpr SColor markerColor = {1.0f, 0.9f, 0.2f, 0.9f};
+	static constexpr float markerHeight = 160.0f;
+	static constexpr float markerRadius = 24.0f;
+
+	// a ground circle for the position, and a pillar so it reads from any angle
+	// and is not lost against busy terrain
+	glSurfaceCircle(base, 72.0f, markerColor, 48);
+
+	auto& rb = RenderBuffer::GetTypedRenderBuffer<VA_TYPE_C>();
+	auto& sh = rb.GetShader();
+
+	for (int a = 0; a < 4; ++a) {
+		const float r0 = math::HALFPI * float(a);
+		const float3 off0(fastmath::sin(r0) * markerRadius, 0.0f, fastmath::cos(r0) * markerRadius);
+
+		rb.AddQuadTriangles(
+			{base + off0 + UpVector * markerHeight, markerColor},
+			{base         + UpVector * markerHeight, markerColor},
+			{base                                  , markerColor},
+			{base + off0                           , markerColor}
+		);
 	}
 
 	glEnable(GL_DEPTH_TEST);
