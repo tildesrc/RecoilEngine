@@ -94,7 +94,7 @@ compatibility paths hardest.
 
 ## Fetching
 
-pr-downloader needs two overrides. BAR ships from its own rapid repo, and its
+pr-downloader needs three overrides. BAR ships from its own rapid repo, and its
 server returns 404 for the `streamer.cgi` protocol pr-downloader prefers, so the
 streaming path has to be turned off or every pool fetch fails:
 
@@ -102,9 +102,30 @@ streaming path has to be turned off or every pool fetch fails:
 cd <build>
 export PRD_RAPID_REPO_MASTER="https://repos.beyondallreason.dev/repos.gz"
 export PRD_RAPID_USE_STREAMER=false
+export PRD_HTTP_SEARCH_URL="https://files-cdn.beyondallreason.dev/find"
 ./tools/pr-downloader/src/pr-downloader --filesystem-writepath "$(pwd)" --download-game "byar:test"
 ./tools/pr-downloader/src/pr-downloader --filesystem-writepath "$(pwd)" --download-game "byar-chobby:test"
 ```
+
+**`PRD_HTTP_SEARCH_URL` is needed when running the engine too, not just when
+pre-fetching** - maps are downloaded on demand from the menu, and games and
+maps come from different places. Games come through rapid, which the first two
+variables point at; maps are looked up one at a time through a springfiles-style
+`find` endpoint, and the compiled-in default is the *old Spring* one
+(`springfiles.springrts.com/json.php`), which carries no BAR content at all. It
+answers `200 OK` with an empty JSON array, so the failure surfaces only as
+`Download Failed ... errorID: 2` in the log and "download failed" in the menu,
+with a successful HTTP exchange right above it. Nothing about it looks like a
+missing setting.
+
+Sanity-check the endpoint directly before suspecting the engine:
+
+```sh
+curl -s "https://files-cdn.beyondallreason.dev/find?category=map&springname=Shallow%20Straits%20v1.0.1"
+```
+
+A JSON object with a `mirrors` array is a working endpoint; `[]` means the
+service does not have that map.
 
 ## The menu
 
