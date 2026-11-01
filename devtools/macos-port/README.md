@@ -190,3 +190,51 @@ Re-apply it after any fresh setup.
 - Adding BAR content to the data directory makes `testUnitSync` fail; it is not
   isolated from what is installed. Run `ctest -E testUnitSync`, or move
   `pool/` and `packages/` aside.
+
+## The Zink-over-Metal spike (measured 2026-11-01)
+
+Result: **not viable today.** Zink runs, on the GPU, and reports **OpenGL 2.1 /
+GLSL 1.20** - far below the OpenGL 4.1 / GLSL 4.10 that Apple's own driver
+gives. Every attempt to create a 3.3-or-newer core context fails with
+`EGL_BAD_MATCH`. The stack is a large regression, not a way past the 4.1
+ceiling.
+
+What does work: `brew install mesa molten-vk vulkan-loader` gives a working
+Vulkan 1.4 on Metal through Mesa's own driver (KosmicKrisp) - `vkprobe` sees
+`Apple M3`. Zink then loads on it and identifies itself as
+`zink Vulkan 1.4(Apple M3 (MESA_KOSMICKRISP))`. So the plumbing is fine; the
+feature coverage is not. Zink says so on startup:
+
+```
+WARNING: ... the selected Vulkan device (Apple M3) doesn't support base Zink
+requirements: have_EXT_custom_border_color
+```
+
+Missing base requirements cap what Zink will advertise, and it drops to 2.1.
+
+To reproduce (`glprobe.c` walks 4.6 down to 3.2 and reports the first core
+profile granted, then checks the extensions BAR needs):
+
+```sh
+export DYLD_LIBRARY_PATH="$(brew --prefix mesa)/lib:/opt/homebrew/lib"
+export VK_ICD_FILENAMES=/opt/homebrew/share/vulkan/icd.d/kosmickrisp_mesa_icd.aarch64.json
+export LIBGL_DRIVERS_PATH="$(brew --prefix mesa)/lib/dri"
+export EGL_PLATFORM=surfaceless GALLIUM_DRIVER=zink
+./glprobe
+```
+
+Two traps worth knowing. `MESA_LOADER_DRIVER_OVERRIDE=zink` is silently
+ignored here and you get `llvmpipe`, Mesa's software rasteriser, which reports
+a full GL 4.6 with every extension present - a very convincing false positive.
+`GALLIUM_DRIVER=zink` is the variable that works. And `EGL_PLATFORM=surfaceless`
+is required or `eglInitialize` fails outright.
+
+That llvmpipe run is a useful control, though: Mesa itself is complete, so the
+gap is specifically the Vulkan-on-Metal driver's feature coverage, not Zink.
+
+Untested: **MoltenVK**, the more mature Vulkan-on-Metal driver. Homebrew ships
+only a static `libMoltenVK.a`, so its ICD points at a `libMoltenVK.dylib` that
+does not exist and the loader cannot use it. Getting a shared build (from the
+Vulkan SDK, or built from source) would be needed to tell whether it satisfies
+more of Zink's requirements than KosmicKrisp does. Until that is measured, the
+spike has only ruled out one of the two drivers.
