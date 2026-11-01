@@ -32,6 +32,26 @@ Measured separation:
 So `compare-baseline.py` counts pixels differing by more than a threshold
 (default 8 levels) and fails above a tolerance (default 0.5%).
 
+## BAR widget config
+
+Two entries in `<write-dir>/LuaUI/Config/BYAR.lua` have to be set for the
+minimap to appear, under the `order` table at the end of the file (the file's
+own header notes that `order = 0` means a disabled widget):
+
+```lua
+Minimap = 20,                          -- the engine minimap widget
+["Picture-in-Picture Minimap"] = 0,    -- PiP, which otherwise takes over
+```
+
+`gui_pip.lua` replaces the engine minimap when it enters minimap mode: it slaves
+and minimises the engine one and disables `gui_minimap`. Its own minimap does
+not render on this port, so with PiP enabled there is no minimap at all - and
+because the disable is **persisted**, a run where PiP took over leaves
+`Minimap = 0` behind and neither draws one on later runs.
+
+BAR rewrites this file, so the setting is lost whenever the write-dir is reset.
+Re-apply it after any fresh setup.
+
 ## Gotchas
 
 - **The scenario must actually stage.** BA registers a widget it has not seen
@@ -93,6 +113,26 @@ lobby down. The file Chobby actually wants is:
 `game` matters: the fallback uses `"generic"`, whose game config has no
 `ShortenNameString`, and that one missing function kills the Chili lobby widget,
 leaves `WG.Chobby` unset and renders a completely black menu.
+
+## BAR widget config
+
+Two entries in `<write-dir>/LuaUI/Config/BYAR.lua` have to be set for the
+minimap to appear, under the `order` table at the end of the file (the file's
+own header notes that `order = 0` means a disabled widget):
+
+```lua
+Minimap = 20,                          -- the engine minimap widget
+["Picture-in-Picture Minimap"] = 0,    -- PiP, which otherwise takes over
+```
+
+`gui_pip.lua` replaces the engine minimap when it enters minimap mode: it slaves
+and minimises the engine one and disables `gui_minimap`. Its own minimap does
+not render on this port, so with PiP enabled there is no minimap at all - and
+because the disable is **persisted**, a run where PiP took over leaves
+`Minimap = 0` behind and neither draws one on later runs.
+
+BAR rewrites this file, so the setting is lost whenever the write-dir is reset.
+Re-apply it after any fresh setup.
 
 ## Gotchas
 
