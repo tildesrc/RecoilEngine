@@ -65,6 +65,27 @@ Re-apply it after any fresh setup.
   particle effects draw on the unsynced RNG and do not reproduce frame-for-frame.
   It still covers terrain, models, team colour, features, shadows, fog of war,
   the build menu with icons, and UI text.
+- **The display has to be awake.** macOS does not composite a window on a
+  sleeping display, so `Cocoa_GL_SwapWindow` blocks forever and the engine never
+  leaves the splash screen; the watchdog then logs a hang every 30s and not one
+  frame is ever drawn. Nothing about the GL settings avoids this — turning vsync
+  off does not help, because the block is in the compositor, not the swap
+  interval. `capture-baseline.sh` now recognises the signature and says so
+  instead of reporting a graphics failure. **Any GL measurement is therefore
+  impossible while the machine is idle with the screen off** — only
+  `spring-headless` runs unattended, and it has no GL at all.
+
+## Probing a render-to-texture target
+
+`SPRING_DBG_R2T_STATS=<substring>` makes `gl.RenderToTexture` sample its target
+after the Lua function has run and log the fraction of non-zero colour and alpha
+pixels, for every texture whose name contains the substring (empty matches all).
+It fires on every 500th call per texture, since widgets issue thousands a frame.
+
+This exists because counting `gl.RenderToTexture` calls proves only that the
+widget ran. The PiP minimap issues thousands of them and still presents nothing,
+and "the content is produced, the presentation is broken" was an assumption, not
+a measurement. Reading the target back settles which half is at fault.
 
 # Running Beyond All Reason
 

@@ -14,6 +14,7 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
+#include <unordered_map>
 #include <optional>
 #include <variant>
 #include <span>
@@ -5075,6 +5076,34 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 	SetMatrixMode(GL_PROJECTION); LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	SetMatrixMode(GL_MODELVIEW);  LuaMatrixStack::Emulated() ? LuaMatrixStack::Pop() : glPopMatrix();
 	glSpringPopAttrib();
+
+	// SPRING_DBG_R2T_STATS=<substr>: sample what actually landed in the target.
+	// Counting gl.RenderToTexture calls only proves the widget ran; the PiP
+	// minimap produced thousands of them and still presented nothing, so the
+	// question is whether the texture has pixels at all.
+	static const char* r2tDbg = getenv("SPRING_DBG_R2T_STATS");
+	if (r2tDbg != nullptr && texture.find(r2tDbg) != std::string::npos) {
+		static std::unordered_map<std::string, int> callCounts;
+		const int n = ++callCounts[texture];
+
+		if ((n % 500) == 1) {
+			const int w = std::min(tex->xsize, 64);
+			const int h = std::min(tex->ysize, 64);
+			std::vector<unsigned char> px(w * h * 4, 0);
+			glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+
+			int nonZeroRGB = 0, nonZeroA = 0, maxA = 0;
+			for (int i = 0; i < w * h; i++) {
+				nonZeroRGB += (px[i * 4 + 0] | px[i * 4 + 1] | px[i * 4 + 2]) != 0;
+				nonZeroA   += (px[i * 4 + 3] != 0);
+				maxA = std::max<int>(maxA, px[i * 4 + 3]);
+			}
+
+			LOG_L(L_WARNING, "[R2TSTATS] %s call=%d fbo=%u size=%dx%d sampled=%dx%d rgb!=0=%d%% a!=0=%d%% maxA=%d",
+				texture.c_str(), n, tex->fbo, tex->xsize, tex->ysize, w, h,
+				(nonZeroRGB * 100) / (w * h), (nonZeroA * 100) / (w * h), maxA);
+		}
+	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER_EXT, currentFBO);
 

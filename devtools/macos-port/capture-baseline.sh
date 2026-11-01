@@ -51,6 +51,21 @@ sleep 1
 
 got=$(count_shots)
 if [ "$got" -lt "$want" ]; then
+  # Distinguish a real rendering failure from the machine simply having its
+  # display asleep. macOS will not composite a window on a sleeping display, so
+  # Cocoa_GL_SwapWindow blocks forever and the engine never gets past the splash
+  # screen - the watchdog then logs a hang every 30s and no frame is ever drawn.
+  # Without this check it looks like a graphics regression, which is what made
+  # this harness seem flaky. "Optimal thread count" is the first line logged
+  # after the splash screen stops swapping.
+  if ! grep -q "Optimal thread count" "$OUT/run.log"; then
+    echo "FAILED: the engine never got past the splash screen." >&2
+    echo "        This is almost always a sleeping display, not a rendering bug:" >&2
+    echo "        macOS does not composite windows on a sleeping display, so the" >&2
+    echo "        buffer swap blocks. Wake the screen and re-run." >&2
+    echo "        (confirm with: grep -c Watchdog $OUT/run.log)" >&2
+    exit 1
+  fi
   echo "FAILED: captured $got of $want frames; see $OUT/run.log" >&2
   exit 1
 fi
