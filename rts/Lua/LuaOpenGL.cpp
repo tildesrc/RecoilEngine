@@ -529,6 +529,14 @@ bool LuaOpenGL::PushEntries(lua_State* L)
 namespace LuaMatrixStack {
 	static std::vector<CMatrix44f> mvStack   = { CMatrix44f() };
 	static std::vector<CMatrix44f> projStack = { CMatrix44f() };
+	// GL_TEXTURE is a third stack, and it has to be a real one even though
+	// nothing here consumes it. Folding it onto the modelview looks harmless
+	// (who multiplies texture matrices?) but the damage is done by the PUSH/POP
+	// COUNT, not the contents: BAR's icon generator selects GL_TEXTURE via
+	// gl.ActiveTexture(0, gl.MatrixMode, GL.TEXTURE) and then pops, so an
+	// aliased stack takes two modelview pops for one push and unbalances a
+	// little further on every icon it renders.
+	static std::vector<CMatrix44f> texStack  = { CMatrix44f() };
 	static unsigned int mode = GL_MODELVIEW;
 	// A widget that installs its own projection owns the whole transform; the
 	// pass default must not be applied on top of it. This travels WITH the
@@ -541,7 +549,11 @@ namespace LuaMatrixStack {
 	bool Emulated() { return globalRenderingInfo.glContextIsCore; }
 
 	static std::vector<CMatrix44f>& Cur() {
-		return (mode == GL_PROJECTION) ? projStack : mvStack;
+		switch (mode) {
+			case GL_PROJECTION: return projStack;
+			case GL_TEXTURE   : return texStack;
+			default           : return mvStack;
+		}
 	}
 
 	CMatrix44f& Top() { return Cur().back(); }
@@ -604,15 +616,17 @@ namespace LuaMatrixStack {
 	struct State {
 		std::vector<CMatrix44f> mv;
 		std::vector<CMatrix44f> proj;
+		std::vector<CMatrix44f> tex;
 		unsigned int mode;
 		std::vector<char> installed;
 	};
 
-	State SaveState() { return State{mvStack, projStack, mode, projInstalled}; }
+	State SaveState() { return State{mvStack, projStack, texStack, mode, projInstalled}; }
 
 	void RestoreState(const State& st) {
 		mvStack = st.mv;
 		projStack = st.proj;
+		texStack = st.tex;
 		mode = st.mode;
 		projInstalled = st.installed;
 	}
@@ -620,6 +634,7 @@ namespace LuaMatrixStack {
 	void Reset() {
 		mvStack.clear();   mvStack.emplace_back();
 		projStack.clear(); projStack.emplace_back();
+		texStack.clear();  texStack.emplace_back();
 		mode = GL_MODELVIEW;
 		projInstalled.clear(); projInstalled.push_back(0);
 	}
