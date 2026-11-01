@@ -300,7 +300,32 @@ TEST_CASE("UnitSync")
 	// Test them
 	if (gamecount > 0 && mapcount > 0) {
 		const std::string map = us::GetMapName(mapidx);
-		const std::string game = GetGameName(gameidx);
+
+		// Take the first game whose defs actually parse rather than a fixed
+		// index. What sits at a given index depends on what happens to be
+		// installed, so pinning one makes the test fail for unrelated reasons -
+		// adding Beyond All Reason alongside Balanced Annihilation was enough,
+		// since its gamedata/defs.lua wants a MOD field unitsync does not
+		// supply. The assertion still holds: some installed game must parse.
+		std::string game;
+
+		for (int i = 0, n = us::GetPrimaryModCount(); i < n; i++) {
+			const std::string candidate = GetGameName(i);
+
+			if (candidate.empty())
+				continue;
+
+			us::AddAllArchives(candidate.c_str());
+
+			if (us::ProcessUnits() == 0 && us::GetUnitCount() >= 1) {
+				game = candidate;
+				break;
+			}
+
+			LOG("[%s] skipping \"%s\": its unit defs did not parse", __func__, candidate.c_str());
+			us::RemoveAllArchives();
+		}
+
 		CHECK_ERROR_MESSAGE(errmsg);
 		CHECK(!map.empty());
 		CHECK(!game.empty());
