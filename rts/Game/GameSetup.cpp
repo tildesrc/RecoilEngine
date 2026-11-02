@@ -20,7 +20,12 @@
 #include <cstring>
 #include <fstream>
 
+#include "System/Config/ConfigHandler.h"
 #include "System/Misc/TracyDefs.h"
+
+CONFIG(std::string, ExtraMutators)
+	.defaultValue("")
+	.description("Semicolon-separated archive names loaded as mutators for every game, on top of any the start script names. For local overrides and testing; single-player only, since every client in a multiplayer game must load the same archives.");
 
 CR_BIND(CGameSetup,)
 CR_REG_METADATA(CGameSetup, (
@@ -309,6 +314,31 @@ void CGameSetup::LoadMutators(const TdfParser& file, std::vector<std::string>& m
 			break;
 
 		mutatorsList.push_back(s);
+	}
+
+	// Mutators named by configuration rather than by the start script, so a
+	// local override archive can apply to games started by a lobby that does
+	// not know about it. Mutators load before the game archive and with
+	// overwrite set, so their files win - which is the point.
+	//
+	// Single-player and local testing only: this changes the set of loaded
+	// archives, and every client in a multiplayer game has to agree on that.
+	const std::string& extra = configHandler->GetString("ExtraMutators");
+
+	for (size_t beg = 0; beg < extra.size(); ) {
+		const size_t end = std::min(extra.find(';', beg), extra.size());
+		std::string name = extra.substr(beg, end - beg);
+
+		// trim, since this is hand-edited and archive names contain spaces
+		while (!name.empty() && isspace(name.front())) name.erase(name.begin());
+		while (!name.empty() && isspace(name.back())) name.pop_back();
+
+		if (!name.empty()) {
+			LOG("[GameSetup::%s] adding configured mutator \"%s\"", __func__, name.c_str());
+			mutatorsList.push_back(name);
+		}
+
+		beg = end + 1;
 	}
 }
 
