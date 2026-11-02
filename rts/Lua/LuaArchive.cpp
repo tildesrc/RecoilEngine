@@ -337,11 +337,15 @@ int LuaArchive::GetAvailableAIs(lua_State* L)
 	// in case either archive is already stashed
 	// (from a previous reload) this will simply
 	// repopulate files
+	// WITH dependencies: a mutator declares no Lua AIs of its own, they come
+	// from the game it depends on. Mounting the named archive alone returned an
+	// empty AI list for any mutator, which a lobby then shows as a battle setup
+	// with no AIs to pick and writes into a start script as an empty AI name.
 	if (!gameArchiveName.empty())
-		vfsHandler->AddArchive(gameArchiveName, false);
+		vfsHandler->AddArchiveWithDeps(gameArchiveName, false);
 
 	if (!mapArchiveName.empty())
-		vfsHandler->AddArchive(mapArchiveName, false);
+		vfsHandler->AddArchiveWithDeps(mapArchiveName, false);
 
 	{
 		// executing LuaAI.lua can not do harm to VFS
@@ -374,6 +378,11 @@ int LuaArchive::GetAvailableAIs(lua_State* L)
 			}
 			lua_rawseti(L, -2, ++count);
 		}
+
+		// an empty list here is what a lobby shows as a battle setup with no AIs
+		// to choose, so say how many were found rather than leaving it silent
+		LOG("[LuaArchive::GetAvailableAIs] %u available (%u lua, %u native)",
+			count, uint32_t(luaAIInfoItems.size()), uint32_t(skirmishAIKeys.size()));
 	}
 
 	vfsHandler->ReMapArchives(false);
