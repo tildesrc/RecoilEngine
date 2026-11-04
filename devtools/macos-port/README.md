@@ -156,6 +156,48 @@ lobby down. The file Chobby actually wants is:
 `ShortenNameString`, and that one missing function kills the Chili lobby widget,
 leaves `WG.Chobby` unset and renders a completely black menu.
 
+## Never hand-edit the root uikeys.txt
+
+Macs have no Pause key, so an obvious move is to add `bind Alt+p pause` to
+`<write-dir>/uikeys.txt`. **Do not.** BAR's hotkey system adopts a hand-edited
+root `uikeys.txt` as a complete keybind *profile*, names it `Custom (N)`, and
+then rewrites the file from that profile - which holds only the lines you added.
+Every other binding is gone, and nothing says so:
+
+```
+BAR Hotkeys: Loaded profile 'Custom (2)' from uikeys.txt
+```
+
+A healthy file is ~370 lines; two lines means this has happened. The symptom is
+keys silently doing nothing - `Ctrl+1` for unit groups, say, which the stock
+Grid profile does bind (`bind Ctrl+1 group set 1`). BAR's own source warns about
+it in passing: *"A hand-edited uikeys.txt becomes a profile of theirs before the
+editor writes over it."*
+
+To recover, delete both `uikeys.txt` and `LuaUI/Config/keybind_profiles.json`.
+BAR rewrites them from its default profile on the next run:
+
+```
+BAR Hotkeys: Did not find keybindings file uikeys.txt. Writing the active profile
+BAR Hotkeys: Loaded profile 'Grid' from uikeys.txt
+```
+
+To add a binding safely, use the **additive** path:
+`<write-dir>/LuaUI/Widgets/uikeys.txt`, whose lines BAR's "Lua UiKeys loader"
+widget feeds through `Spring.SendCommands` on top of the profile. That widget
+ships disabled, so also set `["Lua UiKeys loader"] = 1` in
+`LuaUI/Config/BYAR.lua`. It confirms itself in the log:
+
+```
+Successfully loaded LuaUI/Widgets/uikeys.txt
+```
+
+Diagnosing any key problem starts with `/keydebug` in the in-game console, which
+logs the keyset the engine resolved and every action it matched. An
+`Action List: EMPTY` for a key that should work means the binding is missing,
+not that the key never arrived.
+
+
 ## BAR widget config
 
 Two entries in `<write-dir>/LuaUI/Config/BYAR.lua` have to be set for the
