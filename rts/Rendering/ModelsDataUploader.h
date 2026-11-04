@@ -18,6 +18,19 @@ struct UnitDef;
 struct FeatureDef;
 struct S3DModel;
 
+// A GL_TEXTURE_BUFFER mirror of an uploader's data, for drivers where the SSBO
+// path cannot run. Buffer textures are core since GL 3.1 and give a shader the
+// same thing an SSBO does here: a large array addressed by a computed integer.
+// See devtools/macos-port/SSBO-FALLBACK.md.
+namespace Impl {
+	struct TexBuffer {
+		uint32_t vbo = 0u;
+		uint32_t tex = 0u;
+		uint32_t elems = 0u;
+		uint32_t unit = 0u;
+	};
+}
+
 class TransformsUploader {
 public:
 	using MyClassName = TransformsUploader;
@@ -30,6 +43,12 @@ public:
 	uint32_t GetElemsCount() const { return ssbo->GetByteSize() / sizeof(MyDataType); }
 	constexpr uint32_t GetBindingIdx() const { return MATRIX_SSBO_BINDING_IDX; }
 	constexpr uint32_t GetElemCountIncr() const { return ELEM_COUNTI; }
+
+	// see ModelUniformsUploader; zero when the SSBO path is in use
+	uint32_t GetTexBufferID() const { return texBuf.tex; }
+	uint32_t GetTexBufferElems() const { return texBuf.elems; }
+
+	static constexpr uint32_t TEXBUF_UNIT = 13u;
 public:
 	// Defs
 	size_t GetElemOffset(const UnitDef* def) const;
@@ -47,6 +66,7 @@ public:
 	size_t GetProjectileElemOffset(int32_t syncedProjectileID) const;
 private:
 	std::unique_ptr<IStreamBuffer<MyDataType>> ssbo;
+	Impl::TexBuffer texBuf;
 private:
 	static constexpr const char* className = spring::TypeToCStr<MyClassName>();
 	static constexpr uint32_t MATRIX_SSBO_BINDING_IDX = 0;
@@ -70,8 +90,11 @@ public:
 	// Buffer-texture mirror of the same data, for drivers without SSBO support.
 	// Zero when the SSBO path is in use, so a caller can tell which to expect.
 	// See devtools/macos-port/SSBO-FALLBACK.md.
-	uint32_t GetTexBufferID() const { return texBufTex; }
-	uint32_t GetTexBufferElems() const { return texBufElems; }
+	uint32_t GetTexBufferID() const { return texBuf.tex; }
+	uint32_t GetTexBufferElems() const { return texBuf.elems; }
+
+	// reserved texture unit; shaders name it with layout(binding = N)
+	static constexpr uint32_t TEXBUF_UNIT = 14u;
 public:
 	// Defs
 	size_t GetElemOffset(const UnitDef* def) const;
@@ -95,9 +118,7 @@ private:
 	std::unique_ptr<IStreamBuffer<MyDataType>> ssbo;
 
 	// GL_TEXTURE_BUFFER fallback, used instead of the SSBO where that is absent
-	uint32_t texBufVBO = 0u;
-	uint32_t texBufTex = 0u;
-	uint32_t texBufElems = 0u;
+	Impl::TexBuffer texBuf;
 private:
 	static constexpr const char* className = spring::TypeToCStr<MyClassName>();
 	static constexpr uint32_t MATUNI_SSBO_BINDING_IDX = 1;

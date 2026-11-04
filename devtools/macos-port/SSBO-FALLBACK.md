@@ -72,6 +72,27 @@ whole feature disappears.
 
 ## What the engine now provides
 
+**Two** buffer textures, both bound by the engine on reserved units, so a shader
+names its unit with `layout(binding = N)` and **no widget has to bind anything**.
+`BuildGlslCompatPreamble` lifts that binding out of the source and re-applies it
+with `glUniform1i` after linking, which is how the declaration survives on a
+driver without 4.2.
+
+| SSBO binding | Lua name | unit | element | texels | GLSL |
+|---|---|---|---|---|---|
+| 1 (`ModelUniformsUploader`) | `$model_uniforms` | **14** | `ModelUniformData`, 128 B | 8 | `samplerBuffer` |
+| 0 (`TransformsUploader`) | `$model_transforms` | **13** | `Transform`, 32 B | 2 | `samplerBuffer` |
+
+`Transform` is `{ vec4 quat; vec4 trSc; }` - texel 0 is the quaternion, texel 1
+is translation in `.xyz` and scale in `.w`. It maps 1:1 onto the engine's
+`CQuaternion r; float3 t; float s;`.
+
+An earlier version of this file said the transforms could not be done this way,
+because that SSBO is triple-buffered and aiming a texture at one segment of a
+ring needs `glTexBufferRange` (4.3). That was wrong: the fallback makes its
+**own single buffer** from the same CPU-side storage, so the ring never enters
+into it.
+
 `ModelUniformsUploader` publishes the same bytes as a **buffer texture** when
 `globalRendering->haveGL4` is false. A buffer texture is core since GL **3.1**
 and gives the same capability: a large array addressed by an integer, read with
@@ -304,6 +325,34 @@ restores stock behaviour.
 
 Note that the write dir is gitignored and BAR rewrites parts of it, so these
 patches are the durable copy - not the deployed files.
+
+## The big multiplier: convert the shared code, not the shaders
+
+Most of BAR's per-unit overlays do not have their own shader. They call
+`InitDrawPrimitiveAtUnit` from `LuaUI/Include/DrawPrimitiveAtUnit.lua`, which
+builds one shader for all of them - **24 widgets share it**. And the transform
+accessors live in one more shared place, `modules/graphics/luashader.lua`'s
+`GetQuaternionDefs()`, which every quaternion-transform shader embeds.
+
+So two file conversions covered eleven shader programs at once:
+
+| File | What it carries |
+|---|---|
+| `modules/graphics/luashader.lua` | the `TransformBuffer` SSBO + four accessors |
+| `LuaUI/Shaders/DrawPrimitiveAtUnit_nogs.vert.glsl` | two reads of `uni[].composite` |
+
+Result: rank / energy / hold-fire / repeat icons, selected units (plus ally and
+unfinished variants), unit groups, resurrection halos and ground AO plates all
+compile. Failing programs went 29 -> 20.
+
+**Before converting any individual shader, check whether its SSBO access comes
+from shared code.** `grep -rl DrawPrimitiveAtUnit` and
+`grep -rn "transforms\[" ` are the two searches worth doing first.
+
+In `GetQuaternionDefs` every read went through `GetModelWorldTransform`,
+`GetPieceModelTransform`, `GetPieceWorldTransform` and
+`GetStaticPieceModelTransform`, so swapping `transforms[i]` for a
+`fetchTransform(i)` function left all four working and no caller changed.
 
 ## Candidates, in the order worth doing
 

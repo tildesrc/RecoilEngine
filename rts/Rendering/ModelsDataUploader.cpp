@@ -167,6 +167,101 @@ namespace Impl {
 		ssbo->UnbindBufferRange(bindingIdx);
 		ssbo = nullptr;
 	}
+
+	// A GL_TEXTURE_BUFFER mirror of an uploader's data, for drivers where the
+	// SSBO path cannot run. Buffer textures are core since GL 3.1 and give
+	// shaders the same thing an SSBO does here: a large array addressed by a
+	// computed integer. See devtools/macos-port/SSBO-FALLBACK.md.
+	//
+	// Kept to one texel-aligned element so a shader can index it as
+	// elementIndex * texelsPerElement without a stride uniform; both callers
+	// satisfy that (ModelUniformData is 128 bytes, Transform is 32).
+	template<typename DataType, typename MemStorage>
+	void InitTexBufferCommon(TexBuffer& tb, MemStorage& memStorage, uint32_t elemCount0, uint32_t texUnit, const char* className)
+	{
+		static_assert((sizeof(DataType) % 16) == 0, "a buffer-texture element must be a whole number of RGBA32F texels");
+
+		tb.elems = std::max(elemCount0, static_cast<uint32_t>(memStorage.GetSize()));
+		tb.unit = texUnit;
+
+		glGenBuffers(1, &tb.vbo);
+		// NOT GL_SHADER_STORAGE_BUFFER: a 4.3 enum, rejected by the very drivers
+		// this path exists for
+		glBindBuffer(GL_TEXTURE_BUFFER, tb.vbo);
+		glBufferData(GL_TEXTURE_BUFFER, tb.elems * sizeof(DataType), nullptr, GL_DYNAMIC_DRAW);
+
+		glGenTextures(1, &tb.tex);
+		glBindTexture(GL_TEXTURE_BUFFER, tb.tex);
+		glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, tb.vbo);
+
+		glBindTexture(GL_TEXTURE_BUFFER, 0);
+		glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+		LOG("[%s::InitTexBuffer] buffer-texture fallback active: tex=%u vbo=%u elems=%u texels/elem=%u unit=%u",
+			className, tb.tex, tb.vbo, tb.elems, uint32_t(sizeof(DataType) / 16), tb.unit);
+
+		glClearErrors(className, __func__, false);
+	}
+
+	template<typename DataType, typename MemStorage>
+	void UpdateTexBufferCommon(TexBuffer& tb, MemStorage& memStorage, uint32_t elemCountIncr, const char* className)
+	{
+		if (tb.vbo == 0u)
+			return;
+
+		auto& ul = memStorage.GetUpdateList();
+		const uint32_t storageElems = static_cast<uint32_t>(memStorage.GetSize());
+
+		if (storageElems > tb.elems) {
+			const uint32_t newElems = AlignUp(storageElems, elemCountIncr);
+
+			glBindBuffer(GL_TEXTURE_BUFFER, tb.vbo);
+			glBufferData(GL_TEXTURE_BUFFER, newElems * sizeof(DataType), nullptr, GL_DYNAMIC_DRAW);
+			glBindBuffer(GL_TEXTURE_BUFFER, 0);
+
+			// glBufferData discards the contents, so everything is stale now
+			tb.elems = newElems;
+			ul.SetNeedUpdateAll();
+		}
+
+		if (ul.NeedUpdate()) {
+			const auto* clientPtr = memStorage.GetData().data();
+
+			glBindBuffer(GL_TEXTURE_BUFFER, tb.vbo);
+
+			// only the regions that changed, as the SSBO path does
+			for (auto itPair = ul.GetNext(); itPair.has_value(); itPair = ul.GetNext(itPair)) {
+				auto [idxOffset, idxSize] = ul.GetOffsetAndSize(itPair.value());
+
+				glBufferSubData(GL_TEXTURE_BUFFER,
+					idxOffset * sizeof(DataType),
+					idxSize * sizeof(DataType),
+					clientPtr + idxOffset);
+
+				ul.DecrementUpdate(itPair.value());
+			}
+
+			glBindBuffer(GL_TEXTURE_BUFFER, 0);
+			ul.CalcNeedUpdateAll();
+		}
+
+		// Keep it bound on its reserved unit. Shaders name that unit with
+		// layout(binding = N), which BuildGlslCompatPreamble lifts out and
+		// re-applies after linking, so no widget has to bind anything.
+		glActiveTexture(GL_TEXTURE0 + tb.unit);
+		glBindTexture(GL_TEXTURE_BUFFER, tb.tex);
+		glActiveTexture(GL_TEXTURE0);
+
+		glClearErrors(className, __func__, false);
+	}
+
+	void KillTexBufferCommon(TexBuffer& tb)
+	{
+		if (tb.tex != 0u) { glDeleteTextures(1, &tb.tex); tb.tex = 0u; }
+		if (tb.vbo != 0u) { glDeleteBuffers (1, &tb.vbo); tb.vbo = 0u; }
+
+		tb.elems = 0u;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -182,6 +277,15 @@ void TransformsUploader::Init()
 		? IStreamBufferConcept::Types::SB_PERSISTENTMAP
 		: IStreamBufferConcept::Types::SB_BUFFERSUBDATA;
 
+	if (!globalRendering->haveGL4) {
+		// Same fallback as ModelUniformsUploader. The SSBO here is triple
+		// buffered, which would need glTexBufferRange (4.3) to aim a texture at
+		// one segment - but this path makes its own single buffer, so that does
+		// not apply.
+		Impl::InitTexBufferCommon<MyDataType>(texBuf, transformsMemStorage, ELEM_COUNT0, TEXBUF_UNIT, className);
+		return;
+	}
+
 	Impl::InitCommon<MyDataType>(
 		ssbo,
 		transformsMemStorage,
@@ -193,13 +297,17 @@ void TransformsUploader::Init()
 
 void TransformsUploader::Kill()
 {
+	Impl::KillTexBufferCommon(texBuf);
 	Impl::KillCommon(ssbo, MATRIX_SSBO_BINDING_IDX);
 }
 
 void TransformsUploader::Update()
 {
-	if (!globalRendering->haveGL4)
+	if (!globalRendering->haveGL4) {
+		SCOPED_TIMER("TransformsUploader::Update");
+		Impl::UpdateTexBufferCommon<MyDataType>(texBuf, transformsMemStorage, ELEM_COUNTI, className);
 		return;
+	}
 
 	SCOPED_TIMER("TransformsUploader::Update");
 
@@ -383,135 +491,6 @@ static void ProbeTextureBufferFeasibility(uint32_t elemCount, uint32_t elemSize)
 	glClearErrors("TEXBUF", __func__, false);
 }
 
-// The same per-object data as the SSBO, exposed as a GL_TEXTURE_BUFFER.
-//
-// Shaders that index an unbounded SSBO array cannot run below GL 4.3, but a
-// buffer texture gives the same thing - a large array addressed by a computed
-// integer - and has been core since 3.1. So where the SSBO path is unavailable
-// this publishes the identical bytes through a sampler instead, and content
-// reads them with texelFetch. See devtools/macos-port/SSBO-FALLBACK.md for the
-// shader side.
-//
-// Only ModelUniformsUploader does this. TransformsUploader is triple-buffered,
-// and pointing a texture at one segment of a ring needs glTexBufferRange, which
-// is itself 4.3.
-void ModelUniformsUploader::InitTexBuffer()
-{
-	const uint32_t elems = std::max(ELEM_COUNT0, static_cast<uint32_t>(modelUniformsStorage.GetSize()));
-
-	glGenBuffers(1, &texBufVBO);
-	// NOT GL_SHADER_STORAGE_BUFFER: that enum is 4.3 and raises GL_INVALID_ENUM
-	// on the very drivers this path exists for
-	glBindBuffer(GL_TEXTURE_BUFFER, texBufVBO);
-	glBufferData(GL_TEXTURE_BUFFER, elems * sizeof(MyDataType), nullptr, GL_DYNAMIC_DRAW);
-
-	glGenTextures(1, &texBufTex);
-	glBindTexture(GL_TEXTURE_BUFFER, texBufTex);
-	// RGBA32F: ModelUniformData is 16-byte aligned and a multiple of 16 in size,
-	// so one element is an exact whole number of texels (8 at 128 bytes)
-	glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, texBufVBO);
-
-	glBindTexture(GL_TEXTURE_BUFFER, 0);
-	glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-	texBufElems = elems;
-
-	LOG("[%s::%s] buffer-texture fallback active: tex=%u vbo=%u elems=%u (%u texels/elem)",
-		className, __func__, texBufTex, texBufVBO, texBufElems, uint32_t(sizeof(MyDataType) / 16));
-
-	glClearErrors(className, __func__, false);
-}
-
-void ModelUniformsUploader::UpdateTexBuffer()
-{
-	if (texBufVBO == 0u)
-		return;
-
-	auto& ul = modelUniformsStorage.GetUpdateList();
-	const uint32_t storageElems = static_cast<uint32_t>(modelUniformsStorage.GetSize());
-
-	if (storageElems > texBufElems) {
-		const uint32_t newElems = AlignUp(storageElems, ELEM_COUNTI);
-
-		glBindBuffer(GL_TEXTURE_BUFFER, texBufVBO);
-		glBufferData(GL_TEXTURE_BUFFER, newElems * sizeof(MyDataType), nullptr, GL_DYNAMIC_DRAW);
-		glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-		// glBufferData discards the old contents, so everything is stale now
-		texBufElems = newElems;
-		ul.SetNeedUpdateAll();
-	}
-
-	if (!ul.NeedUpdate())
-		return;
-
-	const auto* clientPtr = modelUniformsStorage.GetData().data();
-
-	glBindBuffer(GL_TEXTURE_BUFFER, texBufVBO);
-
-	// upload only the regions that changed, as the SSBO path does
-	for (auto itPair = ul.GetNext(); itPair.has_value(); itPair = ul.GetNext(itPair)) {
-		auto [idxOffset, idxSize] = ul.GetOffsetAndSize(itPair.value());
-
-		glBufferSubData(GL_TEXTURE_BUFFER,
-			idxOffset * sizeof(MyDataType),
-			idxSize * sizeof(MyDataType),
-			clientPtr + idxOffset);
-
-		ul.DecrementUpdate(itPair.value());
-	}
-
-	glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-	ul.CalcNeedUpdateAll();
-
-	// SPRING_DBG_TEXBUF: read one element back off the GPU and compare it with
-	// the CPU-side value it came from. Proves the whole path end to end - a
-	// buffer that exists and a texture that binds say nothing about whether the
-	// bytes arrived.
-	if (getenv("SPRING_DBG_TEXBUF") != nullptr) {
-		static int reported = 0;
-
-		if (reported < 3) {
-			const auto& data = modelUniformsStorage.GetData();
-
-			for (size_t i = 0; i < std::min<size_t>(data.size(), texBufElems); i++) {
-				if (data[i].health <= 0.0f || data[i].maxHealth <= 0.0f)
-					continue;
-
-				MyDataType gpu = {};
-				glBindBuffer(GL_TEXTURE_BUFFER, texBufVBO);
-				glGetBufferSubData(GL_TEXTURE_BUFFER, i * sizeof(MyDataType), sizeof(MyDataType), &gpu);
-				glBindBuffer(GL_TEXTURE_BUFFER, 0);
-
-				const bool match = (gpu.health == data[i].health && gpu.maxHealth == data[i].maxHealth && gpu.id == data[i].id);
-
-				const bool posMatch = (gpu.drawPos.x == data[i].drawPos.x && gpu.drawPos.z == data[i].drawPos.z);
-
-				LOG("[TEXBUF] elem %zu: cpu(id=%u hp=%.1f/%.1f pos=%.0f,%.0f,%.0f) gpu(id=%u hp=%.1f/%.1f pos=%.0f,%.0f,%.0f) -> %s pos:%s",
-					i, data[i].id, data[i].health, data[i].maxHealth,
-					data[i].drawPos.x, data[i].drawPos.y, data[i].drawPos.z,
-					gpu.id, gpu.health, gpu.maxHealth,
-					gpu.drawPos.x, gpu.drawPos.y, gpu.drawPos.z,
-					match ? "MATCH" : "MISMATCH", posMatch ? "MATCH" : "MISMATCH");
-
-				reported++;
-				break;
-			}
-
-			glClearErrors(className, __func__, false);
-		}
-	}
-}
-
-void ModelUniformsUploader::KillTexBuffer()
-{
-	if (texBufTex != 0u) { glDeleteTextures(1, &texBufTex); texBufTex = 0u; }
-	if (texBufVBO != 0u) { glDeleteBuffers (1, &texBufVBO); texBufVBO = 0u; }
-
-	texBufElems = 0u;
-}
-
 void ModelUniformsUploader::Init()
 {
 	if (getenv("SPRING_DBG_TEXBUF") != nullptr)
@@ -520,7 +499,7 @@ void ModelUniformsUploader::Init()
 	if (!globalRendering->haveGL4) {
 		// the SSBO path leaves ssbo null here, so nothing below runs and this
 		// cannot interfere with it
-		InitTexBuffer();
+		Impl::InitTexBufferCommon<MyDataType>(texBuf, modelUniformsStorage, ELEM_COUNT0, TEXBUF_UNIT, className);
 		return;
 	}
 
@@ -535,7 +514,7 @@ void ModelUniformsUploader::Init()
 
 void ModelUniformsUploader::Kill()
 {
-	KillTexBuffer();
+	Impl::KillTexBufferCommon(texBuf);
 	Impl::KillCommon(ssbo, MATUNI_SSBO_BINDING_IDX);
 }
 
@@ -543,8 +522,8 @@ void ModelUniformsUploader::Update()
 {
 	SCOPED_TIMER("ModelUniformsUploader::Update");
 
-	if (texBufVBO != 0u) {
-		UpdateTexBuffer();
+	if (texBuf.vbo != 0u) {
+		Impl::UpdateTexBufferCommon<MyDataType>(texBuf, modelUniformsStorage, ELEM_COUNTI, className);
 		return;
 	}
 

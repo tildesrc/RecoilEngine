@@ -1,0 +1,56 @@
+--- a/modules/graphics/luashader.lua
++++ b/modules/graphics/luashader.lua
+@@ -367,9 +367,19 @@
+ 	vec4 trSc;
+ };
+ 
+-layout(std140, binding = 0) readonly buffer TransformBuffer {
+-	Transform transforms[];
+-};
++// GL 4.1 override: SSBOs are 4.3, so the engine publishes the transform array
++// as a GL_TEXTURE_BUFFER on a reserved unit instead. Transform is 32 bytes,
++// exactly two RGBA32F texels: quat then trSc.
++// See devtools/macos-port/SSBO-FALLBACK.md.
++layout(binding = 13) uniform samplerBuffer modelTransforms;
++
++Transform fetchTransform(uint idx) {
++	int b = int(idx) * 2;
++	return Transform(
++		texelFetch(modelTransforms, b + 0),
++		texelFetch(modelTransforms, b + 1)
++	);
++}
+ 
+ uint GetUnpackedValue(uint packedValue, uint byteNum) {
+ 	return (packedValue >> (8u * byteNum)) & 0xFFu;
+@@ -516,8 +526,8 @@
+ Transform GetModelWorldTransform(uint baseIndex)
+ {
+ 	return Lerp(
+-		transforms[baseIndex + 0u],
+-		transforms[baseIndex + 1u],
++		fetchTransform(baseIndex + 0u),
++		fetchTransform(baseIndex + 1u),
+ 		timeInfo.w
+ 	);
+ }
+@@ -526,8 +536,8 @@
+ Transform GetPieceModelTransform(uint baseIndex, uint pieceID)
+ {
+ 	return Lerp(
+-		transforms[baseIndex + 2u * (1u + pieceID) + 0u],
+-		transforms[baseIndex + 2u * (1u + pieceID) + 1u],
++		fetchTransform(baseIndex + 2u * (1u + pieceID) + 0u),
++		fetchTransform(baseIndex + 2u * (1u + pieceID) + 1u),
+ 		timeInfo.w
+ 	);
+ }
+@@ -544,7 +554,7 @@
+ 
+ Transform GetStaticPieceModelTransform(uint baseIndex, uint pieceID)
+ {
+-	return transforms[baseIndex + 1u * (pieceID) + 0u];
++	return fetchTransform(baseIndex + 1u * (pieceID) + 0u);
+ }
+ 
+ ]]

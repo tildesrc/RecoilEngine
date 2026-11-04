@@ -72,6 +72,7 @@ LuaMatTexture::Type LuaOpenGLUtils::GetLuaMatTextureType(const std::string& name
 		case hashString("$shadow_color"): { return LuaMatTexture::LUATEX_SHADOWCOLOR; } break;
 		case hashString("$heightmap"   ): { return LuaMatTexture::LUATEX_HEIGHTMAP;   } break;
 		case hashString("$model_uniforms"): { return LuaMatTexture::LUATEX_MODELUNIFORMS; } break;
+		case hashString("$model_transforms"): { return LuaMatTexture::LUATEX_MODELTRANSFORMS; } break;
 
 		// SMF-maps
 		case hashString("$grass"  ): { return LuaMatTexture::LUATEX_SMF_GRASS; } break;
@@ -573,6 +574,10 @@ GLuint LuaMatTexture::GetTextureID() const
 			texID = modelUniformsUploader.GetTexBufferID();
 		} break;
 
+		case LUATEX_MODELTRANSFORMS: {
+			texID = transformsUploader.GetTexBufferID();
+		} break;
+
 
 		// map shading textures (TODO: diffuse? needs coors and {G,S}etMapSquareTexture rework)
 		case LUATEX_SMF_GRASS:
@@ -700,7 +705,8 @@ GLuint LuaMatTexture::GetTextureTarget() const
 			texType = GL_TEXTURE_CUBE_MAP_ARB;
 		} break;
 
-		case LUATEX_MODELUNIFORMS: {
+		case LUATEX_MODELUNIFORMS:    [[fallthrough]];
+		case LUATEX_MODELTRANSFORMS: {
 			texType = GL_TEXTURE_BUFFER;
 		} break;
 
@@ -940,6 +946,10 @@ std::tuple<int, int, int> LuaMatTexture::GetSize() const
 			return ReturnHelper(modelUniformsUploader.GetTexBufferElems(), sizeof(ModelUniformData) / 16);
 		} break;
 
+		case LUATEX_MODELTRANSFORMS: {
+			return ReturnHelper(transformsUploader.GetTexBufferElems(), sizeof(Transform) / 16);
+		} break;
+
 
 		case LUATEX_SMF_GRASS:
 		case LUATEX_SMF_DETAIL:
@@ -1088,6 +1098,7 @@ void LuaMatTexture::Print(const string& indent) const
 		STRING_CASE(typeName, LUATEX_SHADOWCOLOR);
 		STRING_CASE(typeName, LUATEX_HEIGHTMAP);
 		STRING_CASE(typeName, LUATEX_MODELUNIFORMS);
+		STRING_CASE(typeName, LUATEX_MODELTRANSFORMS);
 
 		STRING_CASE(typeName, LUATEX_SMF_GRASS);
 		STRING_CASE(typeName, LUATEX_SMF_DETAIL);

@@ -1,0 +1,33 @@
+--- a/LuaUI/Shaders/DrawPrimitiveAtUnit_nogs.vert.glsl
++++ b/LuaUI/Shaders/DrawPrimitiveAtUnit_nogs.vert.glsl
+@@ -43,11 +43,17 @@
+     vec4[4] userDefined; //can't use float[16] because float in arrays occupies 4 * float space
+ };
+ 
+-layout(std140, binding=1) readonly buffer UniformsBuffer {
+-    SUniformsBuffer uni[];
+-};
++// GL 4.1 override: SSBOs are 4.3, so the engine publishes the same per-object
++// data as a GL_TEXTURE_BUFFER. Only `composite` is read here, so fetch just the
++// texel holding it rather than rebuilding the whole struct.
++// See devtools/macos-port/SSBO-FALLBACK.md.
++layout(binding = 14) uniform samplerBuffer modelUniforms;
++
++// ModelUniformData is 128 bytes = 8 texels; composite is texel 0, component .x,
++// and the texture is float-formatted so the bits need casting back
++#define UNI_COMPOSITE(i) floatBitsToUint(texelFetch(modelUniforms, int(i) * 8 + 0).x)
+ 
+-#define UNITID (uni[instData.y].composite >> 16)
++#define UNITID (UNI_COMPOSITE(instData.y) >> 16)
+ 
+ #line 10000
+ 
+@@ -173,7 +179,7 @@
+ 		mat3 v_fullrotation = mat3(modelMatrix);
+ 	#endif
+ 	// drawFlag check (==1 when unit is visible and drawn as a full model, not an icon)
+-	if ((uni[instData.y].composite & 0x00000003u) < 1u ) culled = true;
++	if ((UNI_COMPOSITE(instData.y) & 0x00000003u) < 1u ) culled = true;
+ 	POST_VERTEX
+ 
+ 	if (v_numvertices == 0u) culled = true;
