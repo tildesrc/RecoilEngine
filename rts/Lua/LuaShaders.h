@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "Rendering/GL/myGL.h"
+#include "System/Matrix44f.h"
 
 
 struct lua_State;
@@ -17,6 +18,14 @@ class LuaShaders {
 		struct Program;
 
 		static bool PushEntries(lua_State* L);
+
+		// Upload the fixed-function matrix uniforms the compat prelude declares
+		// (spring_ModelViewProjectionMatrix and friends) onto whichever Lua shader
+		// is currently active. A Lua shader written against gl_ModelViewProjection-
+		// Matrix otherwise reads an unset mat4 - all zeroes - on a core profile, so
+		// every vertex collapses to the origin and nothing is drawn.
+		// No-op outside a core profile, or with no active Lua shader.
+		static void SetActiveCompatTransform(const CMatrix44f& mvp);
 
 		LuaShaders();
 		~LuaShaders();

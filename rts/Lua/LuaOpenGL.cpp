@@ -2098,6 +2098,16 @@ static void GLObjectShape(lua_State* L, const SolidObjectDef* def)
 	const bool rawState = luaL_optboolean(L, 3,  true);
 	const bool toScreen = luaL_optboolean(L, 4, false);
 
+	// The model transform for a *Shape draw comes from Lua, not from the object
+	// (there is none). In a compatibility profile that arrived through the
+	// fixed-function matrices; on core it lives on the emulated stack, and the
+	// Lua shader the caller bound reads it as spring_ModelViewProjectionMatrix,
+	// which nothing else uploads. BAR's build-menu pictures were the visible
+	// case: the icon generator positions each model with gl.Translate/Rotate/
+	// Scale under its own shader, and an unset mat4 collapsed every vertex to
+	// the origin, so the menu drew with no pictures in it.
+	LuaShaders::SetActiveCompatTransform(LuaOpenGL::GetDrawTransform());
+
 	ScopedModelDrawerImpl<CUnitDrawer> legacy(true, false);
 
 	// does not set the full state by default
@@ -5130,8 +5140,11 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 		const int n = ++callCounts[texture];
 
 		if ((n % 500) == 1) {
-			const int w = std::min(tex->xsize, 64);
-			const int h = std::min(tex->ysize, 64);
+			// the WHOLE target, not a corner: a 64x64 sample of a 734x415 panel
+			// reads as empty whenever the content happens to sit elsewhere, which
+			// is exactly the wrong answer to get from a probe
+			const int w = tex->xsize;
+			const int h = tex->ysize;
 			std::vector<unsigned char> px(w * h * 4, 0);
 			glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
 

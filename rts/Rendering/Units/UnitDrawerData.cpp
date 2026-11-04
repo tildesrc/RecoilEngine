@@ -166,6 +166,62 @@ CUnitDrawerData::CUnitDrawerData(bool& mtModelDrawer_)
 
 	savedData.deadGhostBuildings.resize(teamHandler.ActiveAllyTeams());
 	savedData.liveGhostBuildings.resize(teamHandler.ActiveAllyTeams());
+
+	// SPRING_DBG_BUILDPICS: force-load a few build pictures and report what came
+	// back. These are normally loaded lazily, the first time a build menu asks
+	// for one, so they cannot be measured without driving the interface - which
+	// is exactly what made "the menu has no pictures" hard to pin down.
+	if (getenv("SPRING_DBG_BUILDPICS") != nullptr) {
+		int reported = 0;
+
+		// Load EVERY build picture now, not just a sample. They are normally
+		// created on first request, which for a build menu happens inside a
+		// render-to-texture pass - and creating a texture while an FBO is bound
+		// is the kind of thing that works on a compatibility profile and not on
+		// core. If the pictures appear with this set, that is the bug.
+		for (int i = 1; i <= unitDefHandler->NumUnitDefs(); i++) {
+			const UnitDef* ud = unitDefHandler->GetUnitDefByID(i);
+
+			if (ud == nullptr)
+				continue;
+
+			const uint32_t texID = GetUnitDefImage(ud);
+			const UnitDefImage* img = ud->buildPic;
+
+			if (reported < 3) {
+				// a valid texture NAME proves nothing; read level 0 back and see
+				// whether any pixels actually arrived
+				int nonZero = -1, maxA = -1;
+				GLenum err = GL_NO_ERROR;
+
+				if (texID != 0 && img != nullptr && img->imageSizeX > 0) {
+					const int w = img->imageSizeX, h = img->imageSizeY;
+					std::vector<unsigned char> px(size_t(w) * h * 4, 0);
+
+					while (glGetError() != GL_NO_ERROR) {}
+					glBindTexture(GL_TEXTURE_2D, texID);
+					glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+					err = glGetError();
+					glBindTexture(GL_TEXTURE_2D, 0);
+
+					nonZero = 0; maxA = 0;
+					for (int k = 0; k < w * h; k++) {
+						nonZero += (px[k * 4 + 0] | px[k * 4 + 1] | px[k * 4 + 2]) != 0;
+						maxA = std::max<int>(maxA, px[k * 4 + 3]);
+					}
+					nonZero = (nonZero * 100) / (w * h);
+				}
+
+				LOG("[BUILDPICS] %-16s buildPicName=\"%s\" -> texID=%u size=%dx%d rgb!=0=%d%% maxA=%d readErr=0x%x",
+					ud->name.c_str(), ud->buildPicName.c_str(), texID,
+					img ? img->imageSizeX : -1, img ? img->imageSizeY : -1, nonZero, maxA, err);
+			}
+
+			reported++;
+		}
+
+		LOG("[BUILDPICS] preloaded %d build pictures", reported);
+	}
 }
 
 CUnitDrawerData::~CUnitDrawerData()
@@ -525,7 +581,13 @@ void CUnitDrawerData::SetUnitDefImage(const UnitDef* unitDef, const std::string&
 	CBitmap bitmap;
 
 	if (!texName.empty()) {
-		bitmap.Load("unitpics/" + texName);
+		// the return value was being dropped here, unlike the branch below, so a
+		// build picture that failed to load produced a blank texture and no
+		// warning - which looks like a build menu with icons but no pictures
+		if (!bitmap.Load("unitpics/" + texName)) {
+			LOG_L(L_WARNING, "[UnitDrawerData::%s] failed to load build picture \"unitpics/%s\" for %s", __func__, texName.c_str(), unitDef->name.c_str());
+			bitmap.AllocDummy(SColor(255, 0, 0, 255));
+		}
 	}
 	else {
 		if (!LoadBuildPic("unitpics/" + unitDef->name + ".dds", bitmap) &&

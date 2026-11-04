@@ -466,6 +466,23 @@ namespace {
 			if (shaders.errorLog.empty())
 				shaders.errorLog = "Empty error message:  code = " + IntToString(result) + " (0x" + IntToString(result, "%04X") + ")";
 
+			// Say so. gl.CreateShader only returns nothing and fills errorLog,
+			// which a caller has to go and read with gl.GetShaderLog; content
+			// that does not bother then fails invisibly, and the symptom turns
+			// up far away as something simply not being drawn.
+			const char* typeStr = "unknown";
+			switch (type) {
+				case GL_VERTEX_SHADER         : { typeStr = "vertex"  ; } break;
+				case GL_FRAGMENT_SHADER       : { typeStr = "fragment"; } break;
+				case GL_GEOMETRY_SHADER       : { typeStr = "geometry"; } break;
+				case GL_TESS_CONTROL_SHADER   : { typeStr = "tcs"     ; } break;
+				case GL_TESS_EVALUATION_SHADER: { typeStr = "tes"     ; } break;
+				case GL_COMPUTE_SHADER        : { typeStr = "compute" ; } break;
+				default                       : {                      } break;
+			}
+
+			LOG_L(L_ERROR, "[gl.CreateShader] %s shader failed to compile:\n%s", typeStr, shaders.errorLog.c_str());
+
 			glDeleteShader(obj);
 
 			success = false;
@@ -903,6 +920,34 @@ int LuaShaders::DeleteShader(lua_State* L)
  * @param shaderID integer
  * @return boolean linked
  */
+void LuaShaders::SetActiveCompatTransform(const CMatrix44f& mvp)
+{
+	if (!globalRenderingInfo.glContextIsCore)
+		return;
+	if (activeProgram == nullptr || activeProgram->id == 0)
+		return;
+
+	const GLuint id = activeProgram->id;
+
+	// Resolved per call rather than cached: this runs once per Lua-positioned
+	// model draw, not per vertex, and caching would have to be invalidated on
+	// shader reload.
+	const GLint mvpLoc  = glGetUniformLocation(id, "spring_ModelViewProjectionMatrix");
+	const GLint viewLoc = glGetUniformLocation(id, "spring_ModelViewMatrix");
+	const GLint projLoc = glGetUniformLocation(id, "spring_ProjectionMatrix");
+
+	// as GLSLProgramObject::SetCompatTransform does: an off-screen or
+	// Lua-positioned pass has no meaningful model/view split, so the caller's
+	// whole transform goes in as the projection
+	static const CMatrix44f identity;
+
+	if (mvpLoc  != -1) glUniformMatrix4fv(mvpLoc , 1, false, mvp);
+	if (viewLoc != -1) glUniformMatrix4fv(viewLoc, 1, false, identity);
+	if (projLoc != -1) glUniformMatrix4fv(projLoc, 1, false, mvp);
+
+	glClearErrors("LuaShaders", __func__, false);
+}
+
 int LuaShaders::UseShader(lua_State* L)
 {
 	CheckDrawingEnabled(L, __func__);

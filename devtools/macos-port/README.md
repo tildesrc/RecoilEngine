@@ -156,6 +156,31 @@ lobby down. The file Chobby actually wants is:
 `ShortenNameString`, and that one missing function kills the Chili lobby widget,
 leaves `WG.Chobby` unset and renders a completely black menu.
 
+## A bare component count is not an internal format
+
+`glTexImage2D(target, level, 3 or 4, ...)` - passing the number of components
+where an internal format goes - is GL 1.0, and it was **removed in the core
+profile**, which needs a real enum (`GL_RGB8`, `GL_RGBA8`, ...). The call fails
+with `GL_INVALID_ENUM`, the texture never receives even a level 0, and sampling
+an incomplete texture gives **solid black**.
+
+`nv_dds.cpp` did this for every *uncompressed* DDS, which is why BAR's build
+menu and faction menu drew black tiles: its build pictures are 32-bit BGRA DDS
+files. Compressed DDS were unaffected - those go through
+`glCompressedTexImage2D` with a genuine format enum, so most textures in the
+game were fine and only this one family broke.
+
+Worth generalising while reading this code: a legacy call that *fails* is often
+harder to spot than one that is merely deprecated, because the failure surfaces
+as missing or black output a long way from the call. `SPRING_DBG_DDS_LEGACY=1`
+forces the old behaviour back, which is how the cause was confirmed rather than
+guessed - build pictures read back `rgb!=0=0%` with it and `27%` without.
+
+`SPRING_DBG_BUILDPICS=1` preloads every build picture at startup and reads a few
+back, reporting coverage. Build pictures are otherwise created lazily on first
+request, which happens inside a render-to-texture pass while a build menu draws,
+so they cannot be measured without driving the interface.
+
 ## Never hand-edit the root uikeys.txt
 
 Macs have no Pause key, so an obvious move is to add `bind Alt+p pause` to

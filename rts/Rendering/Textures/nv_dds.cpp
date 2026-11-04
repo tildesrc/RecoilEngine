@@ -165,6 +165,7 @@
 
 // spring related
 #include "Rendering/GL/myGL.h"
+#include "Rendering/GlobalRenderingInfo.h"
 #include "nv_dds.h"
 #include "System/FileSystem/FileHandler.h"
 #include "System/Platform/byteorder.h"
@@ -823,6 +824,31 @@ bool CDDSImage::is_compressed() const
 
 ///////////////////////////////////////////////////////////////////////////////
 // uploads a compressed/uncompressed 1D texture
+// An uncompressed DDS is uploaded with m_components (3, 4, ...) as the internal
+// format. That bare component count is GL 1.0 and was REMOVED in the core
+// profile, which requires a real internal-format enum - so every such upload
+// failed with GL_INVALID_ENUM, left the texture without even a level 0, and the
+// incomplete result sampled as solid black. BAR's build pictures are 32-bit
+// BGRA DDS files, which is how this surfaced: a build menu of black tiles.
+//
+// Compressed DDS were unaffected - those go through glCompressedTexImage2D with
+// a genuine format enum.
+static int DDSInternalFormat(int components)
+{
+	// SPRING_DBG_DDS_LEGACY forces the old behaviour, to confirm this is the
+	// cause rather than merely correlated with it
+	if (!globalRenderingInfo.glContextIsCore || getenv("SPRING_DBG_DDS_LEGACY") != nullptr)
+		return components; // unchanged on a compatibility profile
+
+	switch (components) {
+		case 1: return GL_R8;
+		case 2: return GL_RG8;
+		case 3: return GL_RGB8;
+		case 4: return GL_RGBA8;
+		default: return components;
+	}
+}
+
 bool CDDSImage::upload_texture1D() const
 {
 	RECOIL_DETAILED_TRACY_ZONE;
@@ -856,7 +882,7 @@ bool CDDSImage::upload_texture1D() const
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         }
 
-        glTexImage1D(GL_TEXTURE_1D, 0, m_components, baseImage.get_width(), 0,
+        glTexImage1D(GL_TEXTURE_1D, 0, DDSInternalFormat(m_components), baseImage.get_width(), 0,
             m_format, GL_UNSIGNED_BYTE, baseImage);
 
         // load all mipmaps
@@ -864,7 +890,7 @@ bool CDDSImage::upload_texture1D() const
         {
             const CSurface &mipmap = baseImage.get_mipmap(i);
 
-            glTexImage1D(GL_TEXTURE_1D, i+1, m_components,
+            glTexImage1D(GL_TEXTURE_1D, i+1, DDSInternalFormat(m_components),
                 mipmap.get_width(), 0, m_format, GL_UNSIGNED_BYTE, mipmap);
         }
 
@@ -927,7 +953,7 @@ bool CDDSImage::upload_texture2D(unsigned int imageIndex, int target) const
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         }
 
-        glTexImage2D(target, 0, m_components, image.get_width(),
+        glTexImage2D(target, 0, DDSInternalFormat(m_components), image.get_width(),
             image.get_height(), 0, m_format, GL_UNSIGNED_BYTE,
             image);
 
@@ -936,7 +962,7 @@ bool CDDSImage::upload_texture2D(unsigned int imageIndex, int target) const
         {
             const CSurface &mipmap = image.get_mipmap(i);
 
-            glTexImage2D(target, i+1, m_components, mipmap.get_width(),
+            glTexImage2D(target, i+1, DDSInternalFormat(m_components), mipmap.get_width(),
                 mipmap.get_height(), 0, m_format, GL_UNSIGNED_BYTE, mipmap);
         }
 
@@ -984,7 +1010,7 @@ bool CDDSImage::upload_texture3D() const
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         }
 
-        glTexImage3D(GL_TEXTURE_3D, 0, m_components, baseImage.get_width(),
+        glTexImage3D(GL_TEXTURE_3D, 0, DDSInternalFormat(m_components), baseImage.get_width(),
             baseImage.get_height(), baseImage.get_depth(), 0, m_format,
             GL_UNSIGNED_BYTE, baseImage);
 
@@ -993,7 +1019,7 @@ bool CDDSImage::upload_texture3D() const
         {
             const CSurface &mipmap = baseImage.get_mipmap(i);
 
-            glTexImage3D(GL_TEXTURE_3D, i+1, m_components,
+            glTexImage3D(GL_TEXTURE_3D, i+1, DDSInternalFormat(m_components),
                 mipmap.get_width(), mipmap.get_height(), mipmap.get_depth(), 0,
                 m_format, GL_UNSIGNED_BYTE,  mipmap);
         }

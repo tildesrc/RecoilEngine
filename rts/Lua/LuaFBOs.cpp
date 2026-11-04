@@ -21,6 +21,8 @@
 #include "System/Misc/TracyDefs.h"
 #include "Rendering/GL/FBO.h"
 #include "Rendering/GlobalRendering.h"
+#include <vector>
+#include <algorithm>
 
 
 /******************************************************************************
@@ -671,6 +673,32 @@ int LuaFBOs::ActiveFBO(lua_State* L)
 	glBindFramebuffer(target, fbo->id);
 
 	const int error = lua_pcall(L, (lua_gettop(L) - funcIndex), 0, 0);
+
+	// SPRING_DBG_FBO_STATS: sample what the Lua function actually put in the
+	// target. "Nothing was drawn" and "it was drawn somewhere else" look
+	// identical from outside, and BAR's build-menu pictures come through here.
+	if (getenv("SPRING_DBG_FBO_STATS") != nullptr) {
+		static int calls = 0;
+
+		if ((++calls % 200) == 1) {
+			const int w = std::min(fbo->xsize, 32);
+			const int h = std::min(fbo->ysize, 32);
+			std::vector<unsigned char> px(w * h * 4, 0);
+
+			while (glGetError() != GL_NO_ERROR) {}
+			glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+			const GLenum readErr = glGetError();
+
+			int nonZeroRGB = 0, maxA = 0;
+			for (int i = 0; i < w * h; i++) {
+				nonZeroRGB += (px[i * 4 + 0] | px[i * 4 + 1] | px[i * 4 + 2]) != 0;
+				maxA = std::max<int>(maxA, px[i * 4 + 3]);
+			}
+
+			LOG_L(L_WARNING, "[FBOSTATS] call=%d fbo=%u size=%dx%d sampled=%dx%d rgb!=0=%d%% maxA=%d readErr=0x%x",
+				calls, fbo->id, fbo->xsize, fbo->ysize, w, h, (nonZeroRGB * 100) / (w * h), maxA, readErr);
+		}
+	}
 
 	glBindFramebuffer(target, currentFBO);
 	if (identities) {
