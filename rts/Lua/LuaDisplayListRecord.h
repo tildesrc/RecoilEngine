@@ -39,13 +39,11 @@ struct LuaDListOp {
 
 	float4 alphaCtrl;
 
-	// The transform in effect when this was captured. Widgets routinely wrap a
-	// list's contents in gl.PushMatrix/gl.Translate/gl.Scale, and those calls
-	// are long gone by replay, so the resulting matrix has to travel with the
-	// op. It is used as-is rather than composed with the caller's: lists get
-	// built wherever the widget happens to be, often outside DrawScreen and in
-	// a different space entirely, so there is no dependable base to rebase on.
-	CMatrix44f xf;
+	// NB: no transform is stored. GL applies the matrix current when a list is
+	// CALLED, not when it was built, so replay uses the caller's - see
+	// LuaOpenGL::CallList. An earlier version baked the record-time transform
+	// here, which drew FlowUI's cached cells at a tenth size in a corner,
+	// because they are built inside a render-to-texture pass.
 
 	std::vector<VA_TYPE_TC> verts;
 };

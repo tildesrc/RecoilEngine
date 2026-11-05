@@ -828,7 +828,6 @@ namespace LuaImmediate {
 			op.texture = static_cast<unsigned int>(boundTex);
 			op.ownTexture = LuaDListRecorder::SawTexture();
 			op.alphaCtrl = alphaCtrl;
-			op.xf = LuaOpenGL::GetDrawTransform();
 			op.verts = std::move(out);
 
 			LuaDListRecorder::Add(std::move(op));
@@ -7089,6 +7088,16 @@ int LuaOpenGL::CallList(lua_State* L)
 
 	if (globalRenderingInfo.glContextIsCore) {
 		if (const LuaDListOps* ops = displayLists.GetOps(listIndex); ops != nullptr) {
+			// GL transforms a display list's vertices by the matrix current when
+			// the list is CALLED, not when it was built - matrix commands inside
+			// the list aside, and a list containing those is re-run rather than
+			// replayed. Using the recorded transform instead was wrong: FlowUI
+			// builds its cached cells inside the build menu's render-to-texture
+			// pass, whose transform maps a small offscreen rect, so replaying
+			// them on screen drew every picture about a tenth size, piled up at
+			// the lower-left corner.
+			const CMatrix44f callXf = GetDrawTransform();
+
 			for (const LuaDListOp& op: *ops) {
 				GLuint tex = op.texture;
 
@@ -7101,7 +7110,7 @@ int LuaOpenGL::CallList(lua_State* L)
 					glBindTexture(GL_TEXTURE_2D, tex);
 				}
 
-				LuaImmediate::SubmitXf(op.mode, op.verts, tex, op.alphaCtrl, op.xf);
+				LuaImmediate::SubmitXf(op.mode, op.verts, tex, op.alphaCtrl, callXf);
 			}
 
 			return 0;
