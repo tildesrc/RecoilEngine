@@ -46,10 +46,10 @@ cd RecoilEngine
 git submodule update --init --recursive
 ```
 
-That is all — nothing to patch by hand. The `rts/lib/streflop` submodule points
-at a fork, [tildesrc/streflop](https://github.com/tildesrc/streflop), which
-already carries the one fix macOS needs, so `submodule update` is safe to re-run
-and leaves nothing dirty.
+The `rts/lib/streflop` submodule points at a fork,
+[tildesrc/streflop](https://github.com/tildesrc/streflop), which already carries
+the one fix macOS needs, so `submodule update` is safe to re-run and leaves
+nothing dirty.
 
 What the fork changes: `streflop_cond.h` carried a `std::hypot` shim added for
 macOS in 2013. It is obsolete — libc++ has had `std::hypot` for years — and it
