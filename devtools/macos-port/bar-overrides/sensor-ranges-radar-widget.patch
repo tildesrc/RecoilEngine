@@ -1,0 +1,25 @@
+--- a/LuaUI/Widgets/gui_sensor_ranges_radar.lua
++++ b/LuaUI/Widgets/gui_sensor_ranges_radar.lua
+@@ -164,7 +164,10 @@
+ 		if ssbo then
+ 			ssbo:Delete()
+ 		end
+-		ssbo = gl.GetVBO(GL.SHADER_STORAGE_BUFFER, false)
++		-- GL 4.1 override: GL_SHADER_STORAGE_BUFFER is not even a valid buffer
++		-- target below GL 4.3, so the circle list travels as a buffer texture
++		-- and the shader reads it with texelFetch.
++		ssbo = gl.GetVBO(GL.TEXTURE_BUFFER, false)
+ 		circleSSBO, circleSSBOCapacity = ssbo, 0
+ 		if not ssbo then
+ 			return false
+@@ -173,7 +176,9 @@
+ 		circleSSBOCapacity = instances.maxElements
+ 	end
+ 	instances.instanceVBO:CopyTo(ssbo, instances.usedElements * 32)
+-	ssbo:BindBufferRange(CIRCLE_SSBO_BINDING)
++	-- unit 12, which the shader names with layout(binding = 12); re-bound every
++	-- frame because growing the buffer reallocates its storage
++	ssbo:BindTexture(12)
+ 	return true
+ end
+ 

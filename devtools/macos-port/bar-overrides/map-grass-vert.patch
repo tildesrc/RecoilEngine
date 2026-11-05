@@ -1,0 +1,30 @@
+--- a/LuaUI/Shaders/map_grass_gl4.vert.glsl
++++ b/LuaUI/Shaders/map_grass_gl4.vert.glsl
+@@ -48,9 +48,15 @@
+ uniform sampler2D heightmapTex;
+ 
+ #if UNITBENDENABLED == 1
+-layout(std430, binding = 6) readonly buffer UnitBendBuffer {
+-    vec4 unitBendPositions[]; // xy = worldX/worldZ, z = radius, w = unused
+-};
++// GL 4.1 override: SSBOs are GL 4.3, so the widget's bend list travels as a
++// buffer texture (core since 3.1), read with texelFetch. One vec4 per unit is
++// exactly one RGBA32F texel. The unit must be a literal here - the engine lifts
++// layout(binding) out textually, before the preprocessor runs.
++// See devtools/macos-port/SSBO-FALLBACK.md.
++layout(binding = 10) uniform samplerBuffer unitBendBuffer;
++
++// xy = worldX/worldZ, z = radius, w = unused
++#define unitBendPositions(i) texelFetch(unitBendBuffer, (i))
+ uniform int unitBendCount;
+ #endif
+ 
+@@ -176,7 +182,7 @@
+     vec2 totalBend = vec2(0.0);
+     float maxShrink = 0.0;
+     for (int i = 0; i < unitBendCount; i++) {
+-      vec4 unit = unitBendPositions[i]; // xy = worldXZ, z = radius, w = strength
++      vec4 unit = unitBendPositions(i); // xy = worldXZ, z = radius, w = strength
+       vec2 diff = instancePosRotSize.xz - unit.xy;
+       float distSq = dot(diff, diff);
+       float radius = unit.z;

@@ -1,0 +1,109 @@
+--- a/LuaUI/Widgets/gfx_orb_effects_gl4.lua
++++ b/LuaUI/Widgets/gfx_orb_effects_gl4.lua
+@@ -604,26 +604,73 @@
+     vec4[4] userDefined; //can't use float[16] because float in arrays occupies 4 * float space
+ };
+ 
+-layout(std140, binding=1) readonly buffer UniformsBuffer {
+-    SUniformsBuffer uni[];
+-};
++// Drop-in replacement for BAR's engine-side per-object SSBO on a GL 4.1 core
++// profile, where SSBOs do not exist. The engine publishes the same bytes as a
++// GL_TEXTURE_BUFFER on reserved texture unit 14; rebuilding the struct from its
++// texels means nothing downstream of the declaration has to change.
++//
++// Replaces, verbatim:
++//     layout(std140, binding=1) readonly buffer UniformsBuffer {
++//         SUniformsBuffer uni[];
++//     };
++//
++// Then rewrite every `fetchUni(i)` as `fetchUni(i)`. Keep the SUniformsBuffer struct
++// declaration above this block - it is what fetchUni fills in.
++//
++// The unit MUST be a literal: the engine lifts layout(binding) out of the source
++// textually, before the preprocessor runs, so a #define is still an identifier
++// at that point.
++//
++// See devtools/macos-port/SSBO-FALLBACK.md. The texel layout is dictated by
++// ModelUniformData in rts/Rendering/Models/ModelsMemStorageDefs.h; its
++// static_assert on sizeof == 128 is the only tripwire if that struct changes.
++layout(binding = 14) uniform samplerBuffer modelUniforms;
++
++SUniformsBuffer fetchUni(uint idx) {
++    int b = int(idx) * 8;            // sizeof(ModelUniformData) == 128 == 8 texels
++
++    vec4 t0 = texelFetch(modelUniforms, b + 0);
++    vec4 t1 = texelFetch(modelUniforms, b + 1);
++
++    SUniformsBuffer u;
++    // t0 holds packed integers, and the texture is float-formatted
++    u.composite = floatBitsToUint(t0.x);
++    u.unused2   = floatBitsToUint(t0.y);
++    u.unused3   = floatBitsToUint(t0.z);
++    u.unused4   = floatBitsToUint(t0.w);
+ 
++    u.maxHealth = t1.x;
++    u.health    = t1.y;
++    u.unused5   = t1.z;
++    u.unused6   = t1.w;
+ 
++    u.drawPos = texelFetch(modelUniforms, b + 2);
++    u.speed   = texelFetch(modelUniforms, b + 3);
++
++    u.userDefined[0] = texelFetch(modelUniforms, b + 4);
++    u.userDefined[1] = texelFetch(modelUniforms, b + 5);
++    u.userDefined[2] = texelFetch(modelUniforms, b + 6);
++    u.userDefined[3] = texelFetch(modelUniforms, b + 7);
++
++    return u;
++}
++
++
+ uniform float reflectionPass = 0.0;
+ 
+ #line 10468
+ void main()
+ {
+-	if ((uni[instData.y].composite & 0x00000003u) < 1u ) { // not drawn
++	if ((fetchUni(instData.y).composite & 0x00000003u) < 1u ) { // not drawn
+ 		// Ivand's recommendation is to place vertices outside of NDC space:
+ 		gl_Position = vec4(2.0,2.0,2.0,1.0);
+ 		return;
+ 	}
+ 
+-	vec3 modelWorldPos = uni[instData.y].drawPos.xyz;// + vec3(100,100,100);
+-	unitID_vs = 0.1 + float(uni[instData.y].composite >> 16 ) / 256000.0;
++	vec3 modelWorldPos = fetchUni(instData.y).drawPos.xyz;// + vec3(100,100,100);
++	unitID_vs = 0.1 + float(fetchUni(instData.y).composite >> 16 ) / 256000.0;
+ 
+-	float modelRot = uni[instData.y].drawPos.w;
++	float modelRot = fetchUni(instData.y).drawPos.w;
+ 	mat3 rotY = rotation3dY(modelRot);
+ 
+ 	vec4 vertexWorldPos = vec4(1);
+@@ -676,11 +723,11 @@
+ 	color1_vs = mix(color1_vs, color2_vs, opac_vs);
+ 
+ 	if (margin_teamID_shield_technique.z > 0.5){
+-		float shieldPower = clamp(uni[instData.y].userDefined[0].z, 0, 1);
++		float shieldPower = clamp(fetchUni(instData.y).userDefined[0].z, 0, 1);
+ 		color1_vs = mix(vec4(0.8,0.4, 0,1.0),color1_vs,  shieldPower);
+ 	}
+ 
+-	float relHealth  = clamp(uni[instData.y].health/uni[instData.y].maxHealth, 0, 1);
++	float relHealth  = clamp(fetchUni(instData.y).health/fetchUni(instData.y).maxHealth, 0, 1);
+ 	//color1_vs.rgb *= 1.0 + relHealth;
+ 
+ 
+@@ -880,7 +927,10 @@
+     vec2 uv = NORM2SNORM(vUv);
+ 
+     float violence = (1 - modelPos_vs.w);
+-    const float strength = 0.06 + 0.3 * violence;
++    // GL 4.1 override: a const initializer has to be a constant expression, and
++    // violence is not one. Lenient drivers accept this; Apple's rejects it, and
++    // then reports strength as undeclared everywhere below.
++    float strength = 0.06 + 0.3 * violence;
+     const float dx = 0.16;
+ 
+     float t = 0.1;

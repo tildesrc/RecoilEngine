@@ -1,0 +1,35 @@
+--- a/LuaUI/Shaders/reclaim_field_gl4.vert.glsl
++++ b/LuaUI/Shaders/reclaim_field_gl4.vert.glsl
+@@ -11,10 +11,18 @@
+ layout (location = 0) in vec4 posKind; // xyz world position, w: 0 inner fill, 1 outer gradient, 2 outline
+ 
+ // two vec4 per chunk: (centre.xyz, pulse scale), (alpha, type 0 metal / 1 energy, fade bypass, unused)
+-layout(std430, binding = SSBO_BINDING) readonly buffer ClusterParams {
+-	vec4 params[];
+-};
++// GL 4.1 override: SSBOs are GL 4.3, so the per-chunk parameters travel as a
++// buffer texture (core since 3.1) and are read with texelFetch. Two texels per
++// chunk, exactly the two vec4 the SSBO held.
++// See devtools/macos-port/SSBO-FALLBACK.md.
++// NB: the unit must be a literal here. The engine lifts layout(binding) out of
++// the source textually, before the preprocessor runs, so a shaderConfig define
++// would still be an unresolved identifier at that point. Keep this in step with
++// CLUSTER_PARAMS_UNIT in reclaim_field_renderer_gl4.lua.
++layout(binding = 11) uniform samplerBuffer clusterParams;
+ 
++#define params(i) texelFetch(clusterParams, (i))
++
+ //__ENGINEUNIFORMBUFFERDEFS__
+ 
+ uniform int vertsPerChunk;
+@@ -32,8 +40,8 @@
+ 
+ void main() {
+ 	int chunk = gl_VertexID / vertsPerChunk;
+-	vec4 p0 = params[2 * chunk];
+-	vec4 p1 = params[2 * chunk + 1];
++	vec4 p0 = params(2 * chunk);
++	vec4 p1 = params(2 * chunk + 1);
+ 
+ 	bool energy = p1.y > 0.5;
+ 	float alpha = p1.x * (energy ? toggles.y : toggles.x);

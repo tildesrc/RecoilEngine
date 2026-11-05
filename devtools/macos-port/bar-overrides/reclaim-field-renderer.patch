@@ -1,0 +1,50 @@
+--- a/LuaUI/Include/reclaim_field_renderer_gl4.lua
++++ b/LuaUI/Include/reclaim_field_renderer_gl4.lua
+@@ -15,6 +15,10 @@
+ local EDGE_VERTS = 2 * POINTS_PER_CHUNK ---@type integer per point: one line segment
+ local PARAM_VEC4S = 2 ---@type integer per chunk: (cx, cy, cz, scale), (alpha, type, bypass, 0)
+ local SSBO_BINDING = 9 -- 0, 1, 4, 5, 6 are taken by other BAR shaders
++-- GL 4.1 override: texture unit carrying the parameter buffer texture in place
++-- of the SSBO. 14 and 13 are the engine's own model uniforms and transforms,
++-- 12 is the sensor-range circle list. See devtools/macos-port/SSBO-FALLBACK.md.
++local CLUSTER_PARAMS_UNIT = 11 -- hardcoded as a literal in the vertex shader too
+ local INITIAL_CHUNKS = 256 -- 32 points each; growth copies the buffers on the GPU but still costs a frame
+ local UPLOADS_PER_SYNC = 16 -- geometry uploads per sync pass; the rest waits for the next frame
+ 
+@@ -93,6 +97,7 @@
+ 	shaderName = "Reclaim Field GL4",
+ 	shaderConfig = {
+ 		SSBO_BINDING = SSBO_BINDING,
++		CLUSTER_PARAMS_UNIT = CLUSTER_PARAMS_UNIT,
+ 	},
+ }
+ 
+@@ -120,7 +125,7 @@
+ local function createBuffers(chunks)
+ 	local g = gl.GetVBO(GL.ARRAY_BUFFER, false)
+ 	local e = gl.GetVBO(GL.ARRAY_BUFFER, false)
+-	local p = gl.GetVBO(GL.SHADER_STORAGE_BUFFER, false)
++	local p = gl.GetVBO(GL.TEXTURE_BUFFER, false)
+ 	local gv, ev = gl.GetVAO(), gl.GetVAO()
+ 	if not g or not e or not p or not gv or not ev then
+ 		return nil
+@@ -576,7 +581,9 @@
+ 	end
+ 	shader:Activate()
+ 	shader:SetUniform("toggles", toggleMetal, toggleEnergy)
+-	paramSSBO:BindBufferRange(SSBO_BINDING)
++	-- re-bound every frame: growing the buffer reallocates its storage, which
++	-- would leave the texture pointing at the old allocation
++	paramSSBO:BindTexture(CLUSTER_PARAMS_UNIT)
+ 
+ 	shader:SetUniformInt("vertsPerChunk", GRAD_VERTS)
+ 	shader:SetUniform("yOffset", -1) -- the fill sits one elmo below the outline, as before
+@@ -588,7 +595,7 @@
+ 	edgeVAO:DrawArrays(GL.LINES, highWater * EDGE_VERTS, 0)
+ 	gl.LineWidth(1)
+ 
+-	paramSSBO:UnbindBufferRange(SSBO_BINDING)
++	paramSSBO:UnbindTexture(CLUSTER_PARAMS_UNIT)
+ 	shader:Deactivate()
+ end
+ 

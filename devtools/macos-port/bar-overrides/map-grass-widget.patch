@@ -1,0 +1,32 @@
+--- a/LuaUI/Widgets/map_grass_gl4.lua
++++ b/LuaUI/Widgets/map_grass_gl4.lua
+@@ -1487,7 +1487,9 @@
+ 
+ 	-- Create unit bend SSBO after shader is ready
+ 	if grassConfig.grassShaderParams.UNITBENDENABLED == 1 then
+-		unitBendSSBO = gl.GetVBO(GL.SHADER_STORAGE_BUFFER, false)
++		-- GL 4.1 override: GL_SHADER_STORAGE_BUFFER is not a valid buffer target
++		-- below GL 4.3, so the bend list is a buffer texture instead.
++		unitBendSSBO = gl.GetVBO(GL.TEXTURE_BUFFER, false)
+ 		if unitBendSSBO then
+ 			unitBendSSBO:Define(MAX_BEND_UNITS, { { id = 0, name = "unitBendPositions", size = 4 } })
+ 			unitBendSSBO:Upload(unitBendData)
+@@ -1790,7 +1792,8 @@
+ 		-- Bind unit bending SSBO
+ 		if unitBendSSBO then
+ 			updateUnitBendSSBO()
+-			unitBendSSBO:BindBufferRange(6)
++			-- texture unit 10, named as layout(binding = 10) in the vertex shader
++			unitBendSSBO:BindTexture(10)
+ 		end
+ 
+ 		grassShader:Activate()
+@@ -1907,7 +1910,7 @@
+ 		grassShader:Deactivate()
+ 
+ 		if unitBendSSBO then
+-			unitBendSSBO:UnbindBufferRange(6)
++			unitBendSSBO:UnbindTexture(10)
+ 		end
+ 		tracy.LuaTracyPlot("GrassDrawnInstances", drawnInstances)
+ 		tracy.LuaTracyPlot("GrassVisibleTiles", visibleCount)

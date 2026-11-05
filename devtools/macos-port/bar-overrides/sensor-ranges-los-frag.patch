@@ -1,0 +1,47 @@
+--- a/LuaUI/Shaders/sensor_ranges_los.frag.glsl
++++ b/LuaUI/Shaders/sensor_ranges_los.frag.glsl
+@@ -35,19 +35,27 @@
+ 		vec4[4] userDefined; //can't use float[16] because float in arrays occupies 4 * float space
+ 	};
+ 
+-	layout(std140, binding=1) readonly buffer UniformsBuffer {
+-		SUniformsBuffer uni[];
+-	};
++	// GL 4.1 override: the engine publishes its per-object data as a buffer texture
++	// on a reserved unit instead of an SSBO. See devtools/macos-port/SSBO-FALLBACK.md.
++	layout(binding = 14) uniform samplerBuffer modelUniforms;
++	
++	// ModelUniformData is 128 bytes = 8 texels; composite is texel 0 .x (packed
++	// integers, so the bits need casting back), drawPos is texel 2
++	#define MU_COMPOSITE(i) floatBitsToUint(texelFetch(modelUniforms, int(i) * 8 + 0).x)
++	#define MU_DRAWPOS(i)   texelFetch(modelUniforms, int(i) * 8 + 2)
+ 
+ 	struct SensorCircle {
+ 		vec4 radius_params; // as the vertex shader's instance attributes
+ 		uvec4 instData;
+ 	};
+ 
+-	layout(std430, binding=CIRCLE_SSBO_BINDING) readonly buffer SensorCircles {
+-		SensorCircle circles[];
+-	};
++	// the widget's own circle list, as a buffer texture rather than an SSBO;
++	// SensorCircle is vec4 + uvec4 = 32 bytes = 2 texels
++	layout(binding = 12) uniform samplerBuffer sensorCircles;
+ 
++	#define SC_RADIUS_PARAMS(i) texelFetch(sensorCircles, int(i) * 2 + 0)
++	#define SC_INSTDATA(i)      floatBitsToUint(texelFetch(sensorCircles, int(i) * 2 + 1))
++
+ 	uniform int circleCount;
+ #endif
+ 
+@@ -85,8 +93,8 @@
+ 		float segment = 6.2831853 / float(CIRCLE_SEGMENTS);
+ 		float nearest = 1.0; // distance to the nearest circle edge in edge widths, positive outside
+ 		for (int i = 0; i < circleCount; i++) {
+-			vec4 radius_params = circles[i].radius_params;
+-			vec4 drawPos = uni[circles[i].instData.y].drawPos;
++			vec4 radius_params = SC_RADIUS_PARAMS(i);
++			vec4 drawPos = MU_DRAWPOS(SC_INSTDATA(i).y);
+ 			// cheap reject: well outside even at full size and the largest mid offset
+ 			float reach = radius_params.x + length(radius_params.zw) + pixelSize + 8.0;
+ 			vec2 toUnit = pos - drawPos.xz;

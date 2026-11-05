@@ -1,0 +1,78 @@
+--- a/LuaUI/Widgets/gfx_paralyze_effect.lua
++++ b/LuaUI/Widgets/gfx_paralyze_effect.lua
+@@ -92,10 +92,57 @@
+     vec4[4] userDefined; //can't use float[16] because float in arrays occupies 4 * float space
+ };
+ 
+-layout(std140, binding=1) readonly buffer UniformsBuffer {
+-    SUniformsBuffer uni[];
+-};
++// Drop-in replacement for BAR's engine-side per-object SSBO on a GL 4.1 core
++// profile, where SSBOs do not exist. The engine publishes the same bytes as a
++// GL_TEXTURE_BUFFER on reserved texture unit 14; rebuilding the struct from its
++// texels means nothing downstream of the declaration has to change.
++//
++// Replaces, verbatim:
++//     layout(std140, binding=1) readonly buffer UniformsBuffer {
++//         SUniformsBuffer uni[];
++//     };
++//
++// Then rewrite every `fetchUni(i)` as `fetchUni(i)`. Keep the SUniformsBuffer struct
++// declaration above this block - it is what fetchUni fills in.
++//
++// The unit MUST be a literal: the engine lifts layout(binding) out of the source
++// textually, before the preprocessor runs, so a #define is still an identifier
++// at that point.
++//
++// See devtools/macos-port/SSBO-FALLBACK.md. The texel layout is dictated by
++// ModelUniformData in rts/Rendering/Models/ModelsMemStorageDefs.h; its
++// static_assert on sizeof == 128 is the only tripwire if that struct changes.
++layout(binding = 14) uniform samplerBuffer modelUniforms;
+ 
++SUniformsBuffer fetchUni(uint idx) {
++    int b = int(idx) * 8;            // sizeof(ModelUniformData) == 128 == 8 texels
++
++    vec4 t0 = texelFetch(modelUniforms, b + 0);
++    vec4 t1 = texelFetch(modelUniforms, b + 1);
++
++    SUniformsBuffer u;
++    // t0 holds packed integers, and the texture is float-formatted
++    u.composite = floatBitsToUint(t0.x);
++    u.unused2   = floatBitsToUint(t0.y);
++    u.unused3   = floatBitsToUint(t0.z);
++    u.unused4   = floatBitsToUint(t0.w);
++
++    u.maxHealth = t1.x;
++    u.health    = t1.y;
++    u.unused5   = t1.z;
++    u.unused6   = t1.w;
++
++    u.drawPos = texelFetch(modelUniforms, b + 2);
++    u.speed   = texelFetch(modelUniforms, b + 3);
++
++    u.userDefined[0] = texelFetch(modelUniforms, b + 4);
++    u.userDefined[1] = texelFetch(modelUniforms, b + 5);
++    u.userDefined[2] = texelFetch(modelUniforms, b + 6);
++    u.userDefined[3] = texelFetch(modelUniforms, b + 7);
++
++    return u;
++}
++
+ out vec3 v_modelPosOrig;
+ flat out float v_paralysis;
+ 
+@@ -124,12 +171,12 @@
+ 		vec4 modelPos = ApplyTransform(modelWorldTransform, vec4(v_modelPosOrig.xyz, 1.0));
+ 	#endif
+ 
+-	float paralyzestrength = uni[instData.y].userDefined[1].x; // this (paralyzedamage/maxhealth), so >=1.0 is paralyzed
++	float paralyzestrength = fetchUni(instData.y).userDefined[1].x; // this (paralyzedamage/maxhealth), so >=1.0 is paralyzed
+ 	v_paralysis = min(paralyzestrength * paralyzestrength, 1.1);
+ 
+ 	gl_Position = cameraViewProj * modelPos;
+ 	// drawFlag 1 or 2 means drawn as a full model (not an icon) this frame; otherwise the effect is alpha 0, so cull it
+-	if ((uni[instData.y].composite & 0x00000003u) == 0u || v_paralysis == 0.0) {
++	if ((fetchUni(instData.y).composite & 0x00000003u) == 0u || v_paralysis == 0.0) {
+ 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+ 	}
+ }

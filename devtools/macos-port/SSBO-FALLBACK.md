@@ -10,47 +10,54 @@ guess.
 
 ## STOP: read this before converting anything else
 
-**Converting a shader is not enough to make its feature appear.** Most of these
-widgets get their unit list from `api_unit_tracker_gl4.lua`, which declares
-`depends = { "gl4" }` and is therefore refused at load wherever GL4 is missing.
-Its consumers then have no units to draw and submit zero instances, no matter
-how correct their shader is:
+**This work is finished.** Every BAR shader that can be converted at 4.1 has
+been. If you are here to convert a new one — a BAR update, or a shader nobody
+reached — read "The conversion" and "Things that will waste your time", and
+skip the rest. The sections below record what the conversions cost and why the
+remaining failures are not bugs.
+
+### What still fails, and why that is correct
+
+| Program | Why |
+|---|---|
+| `radarPreviewCoverage GL4` | its `buffer RayData` is **written** by the shader. A buffer texture is read-only, so there is nothing to convert to; it needs image load/store, which is GL 4.2. |
+| the GS variants of the icon / health-bar / selection family | they need a geometry shader BAR only builds for GL4. Each has a `(NoGS)` twin that compiles, and BAR falls back to it unprompted. **These are not failures to chase.** |
+
+### The gate that used to block everything (fixed)
+
+Most of these widgets get their unit list from `api_unit_tracker_gl4.lua`, which
+declared `depends = { "gl4" }` and was therefore refused at load wherever GL4 is
+missing. Its consumers then had no units to draw and submitted zero instances,
+no matter how correct their shader was:
 
 ```
 Missing capabilities:  API Unit Tracker DEVMODE GL4. Disabling.
 Unit Tracker API unavailable, exiting Orb GL4
-Jammed Units Highlight: Unit Tracker API unavailable, exiting
 ```
 
-That gate is **wrong**, not a real requirement. The widget's job is maintaining
-`WG.unittrackerapi.visibleUnits` / `alliedUnits`, which is pure Lua; every GL4
-use in the file, `initGL4()` included, sits behind `if debugdrawvisible then`,
-and that defaults to `false`. One unnecessary dependency line disables an API
-that health bars, orb effects, jammed units, sensor ranges, energy icons,
-firestate icons, idle-builder icons, ground AO plates, defense range and the
-outline shader all read.
+That gate was **wrong**, not a real requirement: the widget's job is maintaining
+`WG.unittrackerapi.visibleUnits` / `alliedUnits`, which is pure Lua, and every
+GL4 use in the file sits behind `if debugdrawvisible then`, default `false`. One
+unnecessary dependency line disabled an API that health bars, orb effects,
+jammed units, sensor ranges, energy icons, firestate icons, idle-builder icons,
+ground AO plates, defense range and the outline shader all read.
 
-**It cannot be fixed from the write dir.** Dropping a corrected copy in
-`<write-dir>/LuaUI/Widgets/` loads, but BAR sandboxes `widgetHandler` for user
-widgets and the tracker needs to call `widgetHandler:VisibleUnitsChanged(...)`
-to fan out to consumers:
+It **cannot** be fixed from the write dir: BAR sandboxes `widgetHandler` for
+user widgets, and the tracker has to call `widgetHandler:VisibleUnitsChanged(...)`
+to fan out to consumers.
 
 ```
-Warning: API Unit Tracker DEVMODE GL4: widgetHandler.VisibleUnitsChanged is not available to user widgets
+Warning: API Unit Tracker DEVMODE GL4: widgetHandler.VisibleUnitsChanged is not
+available to user widgets
 ```
 
-Only an archive ("mod") widget may register custom callins. So the options are:
+Only an archive ("mod") widget may register custom callins — which is the whole
+reason the override `.sdd` exists. See "The override archive" below. Reporting
+the one-line fix upstream to BAR is still the honest end state, and would help
+every GL4-less machine rather than just this checkout.
 
-1. **Report it upstream to BAR** — the honest fix, a one-line change to that
-   file, and it helps every GL4-less machine, not just macOS.
-2. **Ship a mutator `.sdd`** that depends on the BAR archive and shadows the
-   file, so the override counts as an archive widget. Works, but a mutator has
-   its own gametype string, so games started from the Chobby menu would not use
-   it — only scripted launches would.
-
-Until one of those happens, a converted shader can be verified as *compiling*
-but not as *drawing*. Convert against that expectation, and do not read an empty
-screen as a broken conversion.
+The lesson worth keeping: **a shader that compiles is not a feature that draws.**
+Verify both, separately.
 
 ## The problem in one paragraph
 
@@ -354,24 +361,135 @@ In `GetQuaternionDefs` every read went through `GetModelWorldTransform`,
 `GetStaticPieceModelTransform`, so swapping `transforms[i]` for a
 `fetchTransform(i)` function left all four working and no caller changed.
 
-## Candidates, in the order worth doing
+## What was converted
 
-Thirteen distinct features fail on SSBO. Several share a shader family, so
-converting one makes its neighbours cheap. Each has a `(NoGS)` twin whose SSBO
-access is identical.
+Every conversion below is deployed from `devtools/macos-port/bar-overrides/`.
+Failing shader programs went **29 -> 12**, and of those 12, eleven are GS
+variants with working NoGS twins and one is `radarPreviewCoverage` (see above).
 
-**Readability — the reason this exists:**
+| Feature | Route |
+|---|---|
+| Health Bars | `HealthbarsGL4_nogs.vert.glsl` — done first; exercises every field type |
+| Rank / energy / hold-fire / repeat icons, selected + ally-selected + unfinished units, unit groups, resurrection halos, ground AO plates | **one** file: `DrawPrimitiveAtUnit_nogs.vert.glsl` plus `luashader.lua`. See "The big multiplier" below. |
+| Sensor Ranges LOS / Radar / Sonar | one shared shader pair, `sensor_ranges_los.{vert,frag}.glsl`; radar and sonar additionally own a circle-list buffer |
+| Reclaim Field | `reclaim_field_gl4.vert.glsl` + `reclaim_field_renderer_gl4.lua`; widget-owned `ClusterParams` |
+| Map Grass | `map_grass_gl4.vert.glsl` + widget; widget-owned `UnitBendBuffer` |
+| Airjets, Orb Effects, Paralyze Effect | inline shader strings inside the widget `.lua` |
 
-- Health Bars (`gui_healthbars_gl4.lua`) — do this first; its layout is already
-  understood and it exercises every field type
-- Rank Icons, energy / hold-fire / repeat state icons — one family, four widgets
-- Selected Units, Ally Selected Units, Unit Groups — selection markers
-- Sensor Ranges LOS / Radar / Sonar, Radar Preview — range overlays
-- Reclaim Field — reclaimable-material highlighting
+Decoration (grass, jets, orbs) was deprioritised at the time and converted last,
+once it was the only thing left. Worth knowing: it was not slower than the rest.
 
-**Decoration — do not bother:**
+## Widget-owned buffers: `VBO:BindTexture`
 
-- Map Grass, Airjets, Orb Effects, Ground AO Plates, Resurrection Halos
+The engine's own per-object data arrives on reserved units (14 and 13). A widget
+that creates its **own** SSBO needs a buffer texture of its own, so the Lua VBO
+API gained two calls (`rts/Lua/LuaVBOImpl.cpp`, commit `a68cae7c4b`):
+
+```lua
+-- GL_SHADER_STORAGE_BUFFER is not even a valid buffer TARGET below GL 4.3, so
+-- this has to change at creation, not just at bind time
+local buf = gl.GetVBO(GL.TEXTURE_BUFFER, false)
+buf:Define(count, { { id = 0, name = "whatever", size = 4 } })
+buf:Upload(data)
+
+buf:BindTexture(10)          -- instead of buf:BindBufferRange(binding)
+--  ... draw ...
+buf:UnbindTexture(10)
+```
+
+`BindTexture` re-attaches the buffer to its texture **every call**, on purpose:
+growing a VBO reallocates its storage, and a texture attached to the old
+allocation reads as empty with no error.
+
+Element layout is unchanged from the SSBO case — `GL_TEXTURE_BUFFER` goes
+through the same std140 path, so `size = 4` is one `vec4` is one `RGBA32F` texel
+and existing `Define`/`Upload`/`CopyTo` arithmetic carries over untouched.
+
+### Texture units in use
+
+Pick an unused one and keep this table current.
+
+| Unit | Buffer |
+|---|---|
+| 14 | `$model_uniforms` (engine) |
+| 13 | `$model_transforms` (engine) |
+| 12 | sensor-range circles (`gui_sensor_ranges_radar/sonar.lua`) |
+| 11 | reclaim field `ClusterParams` |
+| 10 | grass `UnitBendBuffer` |
+
+## Two traps that are not about SSBOs at all
+
+Both of these were hiding *behind* an SSBO error and only surfaced once the
+conversion worked. Both are BAR bugs that every other desktop driver tolerates
+and Apple's frontend does not, so expect more of them.
+
+- **`layout(binding = N)` must be a literal.** The engine lifts the binding out
+  of the source textually, in `RewriteGlslLayoutBindings`, which runs *before*
+  the preprocessor. A `shaderConfig` define is still an identifier at that point
+  and the line is skipped, leaving 4.2 syntax the driver rejects. Hardcode the
+  number and keep the Lua-side constant in step with a comment.
+- **An undefined macro in `#if` is an error in GLSL**, unlike C. BAR's grass
+  shader tests `#if DEBUG == 1` and never defines `DEBUG`; that alone cost the
+  map its grass. The engine now papers over this for every shader — see
+  `GlslZeroUndefinedConditionMacros` — by emitting `#define NAME 0` for any
+  identifier used in a `#if`/`#elif` that is never defined, which is what the
+  lenient drivers assume anyway. It logs each name once.
+- **A `const` initializer must be a constant expression.** The orb shader had
+  `const float strength = 0.06 + 0.3 * violence;`. Dropping `const` is the fix;
+  there is nothing to preserve.
+
+## Debugging a conversion: read the source the driver got
+
+`SPRING_DBG_SHADERSRC=<dir>` writes every Lua shader the driver is handed into
+that directory, numbered in compile order. Use it the moment an error does not
+match the file on disk, because normalisation rewrites the source — `#version`
+clamped, `#extension` filtered, `layout(binding)` lifted, `#define`s injected —
+and the driver's line numbers refer to the *result*.
+
+This found a bug nothing else would have. `RewriteGlslLayoutBindings` used to
+search for `"layout"` anywhere and then for the next `(` anywhere after it, so
+the word **"layout" in a prose comment** paired with the parentheses of the next
+real declaration and deleted everything between them. The shader still compiled
+as far as the driver was concerned; it just no longer declared the uniform, and
+the error appeared as that uniform being undeclared a dozen lines further down.
+The rewriter now skips comments and requires `(` to follow the token directly,
+but the general shape of that failure — *normalisation silently ate something* —
+is worth suspecting whenever an error names an identifier you can see declared.
+
+To map a driver line number back: find the last `#line N` above it in the dump,
+and count forward from the file line after it.
+
+## Getting the pristine original out of the archive
+
+BAR arrives through rapid, which does not unpack: the archive is an `.sdp` index
+in `<write-dir>/packages/` and the file bodies are gzipped blobs in
+`<write-dir>/pool/`, named by md5. `devtools/macos-port/bar-extract.py` reads the
+index and pulls one file out:
+
+```
+./devtools/macos-port/bar-extract.py build-all LuaUI/Shaders/foo.vert.glsl > foo.glsl
+./devtools/macos-port/bar-extract.py build-all --list | grep -i sensor
+```
+
+Paths in the index are lowercased, and the script matches case-insensitively, so
+type whatever casing the widget uses. Regenerating every patch at once — after a BAR update, or after editing a
+deployed file — is `devtools/macos-port/regen-patches.sh`. It extracts each
+original, diffs it against the deployed override, and dry-run re-applies the
+result, so a file BAR has renamed or restructured is reported rather than
+silently producing an empty patch.
+
+## Reusable snippets
+
+`devtools/macos-port/snippets/` holds the two replacement blocks verbatim, with
+their rationale:
+
+- `model-uniforms-texbuf.glsl` — replaces the engine `UniformsBuffer` SSBO;
+  then rewrite every `uni[i]` as `fetchUni(i)`
+- `model-transforms-texbuf.glsl` — the transform equivalent. **Read its note
+  first:** this conversion is already done centrally in `luashader.lua`, and the
+  element type is the 32-byte quaternion `Transform`, not a `mat4`. Several BAR
+  shaders still carry a dead `mat4 UnitPieces[]` declaration behind
+  `#if USEQUATERNIONS == 0`; converting that branch is wasted work.
 
 ## Things that will waste your time
 
@@ -404,55 +522,58 @@ access is identical.
 
 ## The override archive: how the BAR patches are deployed
 
-The blocker above is fixed locally by a **`.sdd` override archive** rather than
-write-dir files, because only an archive widget escapes BAR's user-widget
-sandbox. `devtools/macos-port/bar-overrides/` holds the source of truth:
+The tracker gate above can only be fixed by an **archive** widget, so the
+overrides ship as a `.sdd` archive rather than write-dir files.
+`devtools/macos-port/bar-overrides/` is the source of truth — a `modinfo.lua`
+plus one patch per overridden file, each against the file as the BAR archive
+ships it.
+
+Deploy by building `<write-dir>/games/bar-macos.sdd/`: extract each original with
+`bar-extract.py`, apply its patch, and place the result at the same path.
+`modinfo.lua` declares `depend` on the stock BAR archive, so BAR is still loaded
+underneath and only these files are shadowed. The deployed tree is gitignored
+and BAR rewrites parts of the write dir, so **the patches are the durable copy,
+not the deployed files.**
+
+### Loading it from the menu: `ExtraMutators`
+
+An archive like this is a mutator, and a mutator is normally named by the start
+script — which means a game started from the Chobby menu would not use it, since
+Chobby writes BAR's own gametype. The engine therefore has a config key
+(`rts/Game/GameSetup.cpp`, commit `a73d1a52d4`):
 
 ```
-modinfo.lua                  the archive manifest, copied verbatim
-unit-tracker-ungate.patch    drops depends = {"gl4"} from the tracker API
-healthbars-widget.patch      binds $model_uniforms, declares the sampler
-healthbars-nogs-vert.patch   the SSBO -> buffer-texture conversion
+ExtraMutators = BAR macOS overrides 1
 ```
 
-Deploy by building `<write-dir>/games/bar-macos.sdd/`:
+`LoadMutators` appends these semicolon-separated archive names after whatever
+`MUTATOR%i` entries the script carried, so menu play picks the overrides up too.
+Single-player only, by design: it changes the content a client loads without
+telling the server.
 
-```
-games/bar-macos.sdd/
-  modinfo.lua
-  LuaUI/Widgets/api_unit_tracker_gl4.lua
-  LuaUI/Widgets/gui_healthbars_gl4.lua
-  LuaUI/Shaders/HealthbarsGL4_nogs.vert.glsl
-```
+The earlier attempt — redirecting the rapid tag so the override archive
+masqueraded as BAR — is **not** the way. It broke Chobby's skirmish modal, since
+`VFS.UseArchive(gameName)` then opened a 4-file archive and `Include
+"modoptions.lua"` failed. `ExtraMutators` adds an archive instead of
+impersonating one.
 
-Extract each original from the BAR archive, apply its patch, and place it at the
-same path. `modinfo.lua` declares `depend` on the stock BAR archive, so BAR is
-still loaded underneath and only these files are shadowed.
-
-Three things that cost time getting this working:
+### Three things that cost time getting this working
 
 - **The gametype string is `name .. " " .. version`,** not `name`. This archive
-  registers as **`BAR macOS overrides 1`**; a start script saying
-  `gametype=BAR macOS overrides` fails with `Dependent archive ... not found`,
-  which reads as if the archive were missing rather than misnamed. Check
-  `cache/ArchiveCache22.lua` for the registered `name` when in doubt.
+  registers as **`BAR macOS overrides 1`**; naming it `BAR macOS overrides`
+  fails with `Dependent archive ... not found`, which reads as if the archive
+  were missing rather than misnamed. Check `cache/ArchiveCache22.lua` for the
+  registered `name` when in doubt.
 - **`depend` must name the BAR archive exactly**, version included
   (`Beyond All Reason test-31765-420384b`). It changes whenever BAR updates, so
   this is the line that will need maintaining.
 - **The archive cache can hide a modinfo mistake.** `cache/ArchiveCache22.lua`
-  is keyed on mtime; if a scan looks like it did nothing, move that file aside
-  and re-run.
-
-### Known limitation
-
-A game started from the **Chobby menu** uses BAR's own gametype and therefore
-**does not load this archive**. Only launches that name the gametype explicitly
-(a start script) get the overrides. So menu play still needs the upstream BAR
-fix for the tracker gate - the archive is for testing and for scripted games.
+  is keyed on mtime; if a scan looks like it did nothing, delete that file and
+  re-run.
 
 ### Verified
 
-With the archive in use: no `Missing capabilities: API Unit Tracker` line, no
-`Unit Tracker API unavailable` from any consumer, the converted NoGS shader
-compiles in 10 ms, and the health-bar widget submits real work -
-`HBPROBE, 12, 0`, twelve instances - where it submitted zero before.
+Playing a skirmish from the menu: no `Missing capabilities: API Unit Tracker`
+line, health bars appear on damaged units, and the AI fights back. Failing
+shader programs 29 -> 12, with every remaining one accounted for in the table at
+the top of this file.
