@@ -1,7 +1,11 @@
 # Playing Beyond All Reason on macOS
 
-This branch makes Recoil build and run natively on Apple Silicon macOS, far
-enough to play BAR single-player. It is an experiment, not a supported port:
+This is a fork of the Recoil engine whose `macos` branch makes it build and run
+natively on Apple Silicon macOS, far enough to play BAR single-player. For the
+engine itself see [README.markdown](README.markdown), and upstream at
+[beyond-all-reason/RecoilEngine](https://github.com/beyond-all-reason/RecoilEngine).
+
+It is an experiment, not a supported port:
 Apple's OpenGL stops at a 4.1 core profile, BAR's modern render path needs 4.3,
 and the gap is bridged by engine changes plus a set of patches against BAR's own
 content.
@@ -21,7 +25,8 @@ archive changes the set of loaded archives, and every client in a game has to
 agree on that. Expect to be the only person on this engine.
 
 For why any of it works the way it does, see
-[PORT-NOTES.md](PORT-NOTES.md) and [SSBO-FALLBACK.md](SSBO-FALLBACK.md). This
+[devtools/macos-port/PORT-NOTES.md](devtools/macos-port/PORT-NOTES.md) and
+[devtools/macos-port/SSBO-FALLBACK.md](devtools/macos-port/SSBO-FALLBACK.md). This
 file is just the recipe.
 
 ---
@@ -130,7 +135,7 @@ curl -s "https://files-cdn.beyondallreason.dev/find?category=map&springname=Delt
 ## 5. Deploy the content overrides
 
 Some of BAR's widgets and shaders have to be patched to run on 4.1. Those
-patches are in `bar-overrides/`, stored as diffs against stock BAR rather than
+patches are in `devtools/macos-port/bar-overrides/`, stored as diffs against stock BAR rather than
 as whole files, because BAR's content is a read-only rapid archive and the
 deployed copy lives in a write dir that BAR itself rewrites.
 
@@ -239,7 +244,7 @@ To recover from a clobbered file, delete both `uikeys.txt` and
 
 ## When BAR updates
 
-The patches in `bar-overrides/` are written against specific BAR files, so a
+The patches in `devtools/macos-port/bar-overrides/` are written against specific BAR files, so a
 BAR update can invalidate them. After downloading a new version:
 
 ```sh
@@ -255,13 +260,15 @@ you are editing the port, not just running it: fix the deployed file in
 ```
 
 which rewrites every patch from the deployed tree — the opposite direction to
-the deploy script — and dry-run re-applies them all. `bar-extract.py` pulls a
+the deploy script — and dry-run re-applies them all.
+`devtools/macos-port/bar-extract.py` pulls a
 single pristine file out of the archive, and `--list` dumps every path in it,
 which is how to find BAR's actual capitalisation.
 
 The patches are the durable copy of this work; the deployed `.sdd` is gitignored
-and disposable. `SSBO-FALLBACK.md` is the guide to writing a new conversion, and
-`snippets/` holds the GLSL preambles they share.
+and disposable. `devtools/macos-port/SSBO-FALLBACK.md` is the guide to writing a
+new conversion, and `devtools/macos-port/snippets/` holds the GLSL preambles they
+share.
 
 ## Troubleshooting
 

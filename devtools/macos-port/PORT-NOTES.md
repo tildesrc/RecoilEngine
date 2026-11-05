@@ -2,8 +2,8 @@
 
 The working log for the macOS / OpenGL 4.1 core-profile port - measurements,
 dead ends, and the debug switches built along the way. If you only want to play
-BAR on a Mac, read [README.md](README.md) instead; this file is for changing the
-port itself.
+BAR on a Mac, read the [README](../../README.md) at the repo root instead; this
+file is for changing the port itself.
 
 ---
 
