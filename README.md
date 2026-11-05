@@ -21,9 +21,17 @@ on its own.
 **What you don't:** `radarPreviewCoverage`, which writes to its buffer and so
 needs image load/store (GL 4.2) rather than a read-only buffer texture. The
 picture-in-picture minimap does not render either — use the engine minimap, see
-[Widget config](#widget-config). Multiplayer is out of scope: the override
-archive changes the set of loaded archives, and every client in a game has to
-agree on that. Expect to be the only person on this engine.
+[Widget config](#widget-config).
+
+**Multiplayer is untested rather than broken.** Nothing here should desync: the
+simulation is upstream's and unmodified (this branch changes exactly one file
+under `rts/Sim`, a creg annotation for an unsynced render hint), the content
+overrides are all `LuaUI/`, which is client-side, and arm64 float determinism is
+tested upstream by `tools/sync-test`. What has never been exercised is a real
+game: there is no end-to-end sync test for this build.
+
+The practical obstacle is a separate matter — BAR's lobby expects published
+engine versions, so this is for single-player and private games.
 
 For why any of it works the way it does, see
 [devtools/macos-port/PORT-NOTES.md](devtools/macos-port/PORT-NOTES.md) and
