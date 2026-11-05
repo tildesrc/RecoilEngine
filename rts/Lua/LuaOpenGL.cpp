@@ -826,6 +826,7 @@ namespace LuaImmediate {
 			LuaDListOp op;
 			op.mode = mode;
 			op.texture = static_cast<unsigned int>(boundTex);
+			op.ownTexture = LuaDListRecorder::SawTexture();
 			op.alphaCtrl = alphaCtrl;
 			op.xf = LuaOpenGL::GetDrawTransform();
 			op.verts = std::move(out);
@@ -4636,10 +4637,23 @@ int LuaOpenGL::Texture(lua_State* L)
 	}
 
 	if (lua_isboolean(L, nextArg)) {
-		if (lua_toboolean(L, nextArg)) {
-			glEnable(GL_TEXTURE_2D);
+		LuaDListRecorder::NoteTexture();
+
+		if (globalRenderingInfo.glContextIsCore) {
+			// There is no texturing switch in a core profile - whether a draw is
+			// textured follows from the shader - so gl.Texture(false) has to
+			// UNBIND instead. Leaving the previous texture bound made callers
+			// that disable texturing before drawing untextured geometry sample
+			// whatever came before: FlowUI's cached cell frames picked up the
+			// unit picture bound just above them.
+			if (!lua_toboolean(L, nextArg))
+				glBindTexture(GL_TEXTURE_2D, 0);
 		} else {
-			glDisable(GL_TEXTURE_2D);
+			if (lua_toboolean(L, nextArg)) {
+				glEnable(GL_TEXTURE_2D);
+			} else {
+				glDisable(GL_TEXTURE_2D);
+			}
 		}
 
 		if (texUnit != GL_TEXTURE0)
@@ -4659,7 +4673,28 @@ int LuaOpenGL::Texture(lua_State* L)
 	LuaMatTexture tex;
 
 	const std::string imgName = lua_tostring(L, nextArg);
-	if (LuaOpenGLUtils::ParseTextureImage(L, tex, imgName)) {
+	const bool parsed = LuaOpenGLUtils::ParseTextureImage(L, tex, imgName);
+
+	// a binding made INSIDE a display list belongs to the list; one made outside
+	// does not, and the list has to sample whatever is current when it is called
+	LuaDListRecorder::NoteTexture();
+
+	// SPRING_DBG_TEXBIND=<prefix>: report every gl.Texture call whose name starts
+	// with the prefix, with whether it parsed and what it resolved to. "#" gives
+	// the build pictures. A name that parses but resolves to texture 0 binds
+	// nothing while still returning true to Lua, so the caller draws a quad with
+	// whatever was bound before.
+	if (const char* pfx = getenv("SPRING_DBG_TEXBIND"); pfx != nullptr && imgName.rfind(pfx, 0) == 0) {
+		static spring::unordered_map<std::string, int> seen;
+
+		if (++seen[imgName] <= 2) {
+			LOG_L(L_WARNING, "[TEXBIND] \"%s\" parsed=%d type=%d texID=%u target=0x%x unit=0x%x",
+				imgName.c_str(), int(parsed), parsed ? int(tex.type) : -1,
+				parsed ? tex.GetTextureID() : 0u, parsed ? tex.GetTextureTarget() : 0u, texUnit);
+		}
+	}
+
+	if (parsed) {
 		lua_pushboolean(L, true);
 
 		tex.Enable(true);
@@ -5139,7 +5174,9 @@ int LuaOpenGL::RenderToTexture(lua_State* L)
 		static std::unordered_map<std::string, int> callCounts;
 		const int n = ++callCounts[texture];
 
-		if ((n % 500) == 1) {
+		// the first few renders per target, so a working first pass followed by an
+		// empty second one is visible
+		if (n <= 4 || (n % 500) == 1) {
 			// the WHOLE target, not a corner: a 64x64 sample of a 734x415 panel
 			// reads as empty whenever the content happens to sit elsewhere, which
 			// is exactly the wrong answer to get from a probe
@@ -7053,8 +7090,18 @@ int LuaOpenGL::CallList(lua_State* L)
 	if (globalRenderingInfo.glContextIsCore) {
 		if (const LuaDListOps* ops = displayLists.GetOps(listIndex); ops != nullptr) {
 			for (const LuaDListOp& op: *ops) {
-				glBindTexture(GL_TEXTURE_2D, op.texture);
-				LuaImmediate::SubmitXf(op.mode, op.verts, op.texture, op.alphaCtrl, op.xf);
+				GLuint tex = op.texture;
+
+				if (!op.ownTexture) {
+					// the caller bound it, as a real display list would see
+					GLint cur = 0;
+					glGetIntegerv(GL_TEXTURE_BINDING_2D, &cur);
+					tex = static_cast<GLuint>(cur);
+				} else {
+					glBindTexture(GL_TEXTURE_2D, tex);
+				}
+
+				LuaImmediate::SubmitXf(op.mode, op.verts, tex, op.alphaCtrl, op.xf);
 			}
 
 			return 0;

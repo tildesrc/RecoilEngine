@@ -27,7 +27,16 @@
 // so those lists are no worse than before.
 struct LuaDListOp {
 	unsigned int mode = 0;
+
+	// The texture bound when this was captured, and whether the LIST bound it.
+	// GL does not compile a texture binding made outside a display list into
+	// it, so a list whose caller binds the texture - FlowUI's cached unit cells
+	// do exactly that - must sample whatever is current at CALL time. Forcing
+	// the recorded texture made a hovered build-menu cell draw with some other
+	// unit's picture, or none.
 	unsigned int texture = 0;
+	bool ownTexture = false;
+
 	float4 alphaCtrl;
 
 	// The transform in effect when this was captured. Widgets routinely wrap a
@@ -50,6 +59,7 @@ namespace LuaDListRecorder {
 	inline LuaDListOps* target = nullptr;
 	inline bool sawText = false;
 	inline bool sawMatrix = false;
+	inline bool sawTexture = false;
 
 	inline bool Recording() { return target != nullptr; }
 
@@ -57,6 +67,7 @@ namespace LuaDListRecorder {
 		target = ops;
 		sawText = false;
 		sawMatrix = false;
+		sawTexture = false;
 	}
 
 	inline void End() { target = nullptr; }
@@ -64,6 +75,10 @@ namespace LuaDListRecorder {
 	// a print was suppressed during the capture, so the recording is unusable
 	inline void NoteText() { sawText = true; }
 	inline bool SawText() { return sawText; }
+
+	// a gl.Texture call inside the recording, so the list owns its binding
+	inline void NoteTexture() { sawTexture = true; }
+	inline bool SawTexture() { return sawTexture; }
 
 	// A list is also a legitimate way to carry matrix state: BA's UI framework
 	// installs its whole projection in one. Replaying only the geometry throws
