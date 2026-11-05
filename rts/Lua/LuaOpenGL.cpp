@@ -828,6 +828,19 @@ namespace LuaImmediate {
 			op.texture = static_cast<unsigned int>(boundTex);
 			op.ownTexture = LuaDListRecorder::SawTexture();
 			op.alphaCtrl = alphaCtrl;
+
+			GLint bsr = 0, bdr = 0, bsa = 0, bda = 0;
+			glGetIntegerv(GL_BLEND_SRC_RGB  , &bsr);
+			glGetIntegerv(GL_BLEND_DST_RGB  , &bdr);
+			glGetIntegerv(GL_BLEND_SRC_ALPHA, &bsa);
+			glGetIntegerv(GL_BLEND_DST_ALPHA, &bda);
+
+			op.blendEnabled = (glIsEnabled(GL_BLEND) == GL_TRUE);
+			op.blendSrcRGB = static_cast<unsigned int>(bsr);
+			op.blendDstRGB = static_cast<unsigned int>(bdr);
+			op.blendSrcA   = static_cast<unsigned int>(bsa);
+			op.blendDstA   = static_cast<unsigned int>(bda);
+
 			op.verts = std::move(out);
 
 			LuaDListRecorder::Add(std::move(op));
@@ -7098,6 +7111,37 @@ int LuaOpenGL::CallList(lua_State* L)
 			// the lower-left corner.
 			const CMatrix44f callXf = GetDrawTransform();
 
+			// the caller's blend state, to put back once the list has replayed
+			GLint cbsr = 0, cbdr = 0, cbsa = 0, cbda = 0;
+			glGetIntegerv(GL_BLEND_SRC_RGB  , &cbsr);
+			glGetIntegerv(GL_BLEND_DST_RGB  , &cbdr);
+			glGetIntegerv(GL_BLEND_SRC_ALPHA, &cbsa);
+			glGetIntegerv(GL_BLEND_DST_ALPHA, &cbda);
+			const bool callerBlend = (glIsEnabled(GL_BLEND) == GL_TRUE);
+
+			// SPRING_DBG_DLIST: ops and their extents, to see overlapping or
+			// duplicated geometry in a replayed list
+			if (getenv("SPRING_DBG_DLIST") != nullptr) {
+				static spring::unordered_map<unsigned int, int> seen;
+
+				if (++seen[listIndex] <= 2) {
+					LOG_L(L_WARNING, "[DLIST] list=%u ops=%zu", listIndex, ops->size());
+
+					int i = 0;
+					for (const LuaDListOp& op: *ops) {
+						float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+
+						for (const VA_TYPE_TC& v: op.verts) {
+							x0 = std::min(x0, v.pos.x); x1 = std::max(x1, v.pos.x);
+							y0 = std::min(y0, v.pos.y); y1 = std::max(y1, v.pos.y);
+						}
+
+						LOG_L(L_WARNING, "[DLIST]   op %d mode=0x%x verts=%zu tex=%u own=%d bbox=(%.1f,%.1f)-(%.1f,%.1f)",
+							i++, op.mode, op.verts.size(), op.texture, int(op.ownTexture), x0, y0, x1, y1);
+					}
+				}
+			}
+
 			for (const LuaDListOp& op: *ops) {
 				GLuint tex = op.texture;
 
@@ -7110,7 +7154,21 @@ int LuaOpenGL::CallList(lua_State* L)
 					glBindTexture(GL_TEXTURE_2D, tex);
 				}
 
+				if (op.blendEnabled) {
+					glEnable(GL_BLEND);
+					glBlendFuncSeparate(op.blendSrcRGB, op.blendDstRGB, op.blendSrcA, op.blendDstA);
+				} else {
+					glDisable(GL_BLEND);
+				}
+
 				LuaImmediate::SubmitXf(op.mode, op.verts, tex, op.alphaCtrl, callXf);
+			}
+
+			if (callerBlend) {
+				glEnable(GL_BLEND);
+				glBlendFuncSeparate(cbsr, cbdr, cbsa, cbda);
+			} else {
+				glDisable(GL_BLEND);
 			}
 
 			return 0;

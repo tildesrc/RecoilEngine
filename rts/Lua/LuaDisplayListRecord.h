@@ -39,6 +39,16 @@ struct LuaDListOp {
 
 	float4 alphaCtrl;
 
+	// Blend state at capture time. GL compiles glBlendFunc INTO a display list,
+	// so a list that changes blending mid-way expects that to replay with it -
+	// FlowUI's unit cells switch to additive before drawing a highlight band
+	// across the top 40% of the cell. Replaying every op under the caller's
+	// blend mode instead made that band double-bright whenever the caller was
+	// itself drawing additively, which is what a hovered build-menu cell does.
+	bool blendEnabled = true;
+	unsigned int blendSrcRGB = 0, blendDstRGB = 0;
+	unsigned int blendSrcA   = 0, blendDstA   = 0;
+
 	// NB: no transform is stored. GL applies the matrix current when a list is
 	// CALLED, not when it was built, so replay uses the caller's - see
 	// LuaOpenGL::CallList. An earlier version baked the record-time transform
