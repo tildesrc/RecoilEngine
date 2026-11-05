@@ -575,7 +575,16 @@ void LuaVBOImpl::Define(const int elementsCount, const sol::optional<sol::object
 		break;
 	case GL_ARRAY_BUFFER:
 	case GL_UNIFORM_BUFFER:
-	case GL_SHADER_STORAGE_BUFFER: {
+	case GL_SHADER_STORAGE_BUFFER:
+	// A buffer texture is defined exactly like a UBO/SSBO - same std140 element
+	// rules - and it has to be listed HERE as well as in the type-validity and
+	// element-layout switches above. Leaving it out of this one does not report
+	// "invalid buffer target" anywhere useful: the throw unwinds the widget's
+	// Define call and the buffer is left allocated at zero bytes, so the symptom
+	// is the FIRST UPLOAD failing with "Upload array contains too much data", in
+	// a widget that just reported its shader compiled fine.
+	// See devtools/macos-port/SSBO-FALLBACK.md.
+	case GL_TEXTURE_BUFFER: {
 		if (!attribDefArgOpt.has_value())
 			LuaUtils::SolLuaError("[LuaVBOImpl::%s] Function has to contain non-empty second argument", __func__);
 		result = defineBufferFunc(attribDefArgOpt.value());
