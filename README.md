@@ -2,7 +2,8 @@
 
 This is a fork of the Recoil engine whose `macos` branch makes it build and run
 natively on Apple Silicon macOS, far enough to play BAR single-player. For the
-engine itself see [README.markdown](README.markdown), and upstream at
+engine itself - what it is, releases, and building it on a supported platform -
+see upstream:
 [beyond-all-reason/RecoilEngine](https://github.com/beyond-all-reason/RecoilEngine).
 
 It is an experiment, not a supported port:
