@@ -48,6 +48,13 @@ public:
 	size_t MatrixDataFromProjectileIDs(int id, int attrID, sol::optional<int> elemOffsetOpt);
 	size_t MatrixDataFromProjectileIDs(const sol::stack_table& ids, int attrID, sol::optional<int> elemOffsetOpt);
 
+	// Attach this buffer to a GL_TEXTURE_BUFFER texture and bind it to a texture
+	// unit, so a shader can read it as a samplerBuffer with texelFetch. The
+	// stand-in for an SSBO where shader storage buffers do not exist, which is
+	// anything below GL 4.3 - macOS in particular.
+	int BindTexture(const GLuint unit, const sol::optional<GLenum> formatOpt);
+	int UnbindTexture(const GLuint unit);
+
 	int BindBufferRange  (const GLuint index, const sol::optional<int> elemOffsetOpt, const sol::optional<int> elemCountOpt, const sol::optional<GLenum> targetOpt);
 	int UnbindBufferRange(const GLuint index, const sol::optional<int> elemOffsetOpt, const sol::optional<int> elemCountOpt, const sol::optional<GLenum> targetOpt);
 
@@ -60,6 +67,7 @@ public:
 	static bool Supported(GLenum target);
 private:
 	void AllocGLBuffer(size_t byteSize);
+	uint32_t texID = 0u; // lazily created by BindTexture
 	void CopyAttrMapToVec();
 
 	int BindBufferRangeImpl(GLuint index, const sol::optional<int> elemOffsetOpt, const sol::optional<int> elemCountOpt, const sol::optional<GLenum> targetOpt, bool bind);

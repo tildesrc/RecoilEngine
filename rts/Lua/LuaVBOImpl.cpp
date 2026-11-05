@@ -115,6 +115,12 @@ inline void LuaVBOImpl::InstanceBufferCheckAndFormatCheck(int attrID, const char
  */
 void LuaVBOImpl::Delete()
 {
+	// the buffer texture BindTexture may have created
+	if (texID != 0u) {
+		glDeleteTextures(1, &texID);
+		texID = 0u;
+	}
+
 	//safe to call multiple times
 	if (vboOwner)
 		spring::SafeDelete(vbo);
@@ -164,6 +170,11 @@ bool LuaVBOImpl::IsTypeValid(GLenum type)
 		return arrayBufferValidType();
 	case GL_UNIFORM_BUFFER:
 	case GL_SHADER_STORAGE_BUFFER: //assume std140 for now for SSBO
+	// A buffer texture stands in for an SSBO where that does not exist: it is
+	// core since GL 3.1 and gives a shader the same large, integer-indexed
+	// array, read with texelFetch. Same element rules as a UBO/SSBO.
+	// See devtools/macos-port/SSBO-FALLBACK.md.
+	case GL_TEXTURE_BUFFER:
 		return ubossboValidType();
 	default:
 		return false;
@@ -266,6 +277,10 @@ void LuaVBOImpl::GetTypePtr(GLenum type, GLint size, uint32_t& thisPointer, uint
 	} break;
 	case GL_UNIFORM_BUFFER:
 	case GL_SHADER_STORAGE_BUFFER: { //assume std140 for now for SSBO
+		if (!std140Params(sizeInBytes, alignment))
+			return;
+	} break;
+	case GL_TEXTURE_BUFFER: {
 		if (!std140Params(sizeInBytes, alignment))
 			return;
 	} break;
@@ -1366,6 +1381,57 @@ size_t LuaVBOImpl::MatrixDataFromProjectileIDs(const sol::stack_table& ids, int 
 		idsVec[i] = id;
 	}
 	return MatrixDataFromProjectileIDsImpl(idsVec, attrID, elemOffsetOpt, __func__);
+}
+
+/***
+ * Attach this buffer to a buffer texture and bind it to a texture unit, for
+ * shaders to read with texelFetch as a samplerBuffer.
+ *
+ * The replacement for an SSBO on a driver without shader storage buffers. The
+ * texture is read-only from the shader's side, so this cannot stand in for an
+ * SSBO that is written to.
+ *
+ * @function VBO:BindTexture
+ * @param unit integer texture unit
+ * @param format GL? (Default: `GL_RGBA32F`) internal format the texels are read as
+ * @return integer unit when successful, -1 otherwise
+ */
+int LuaVBOImpl::BindTexture(const GLuint unit, const sol::optional<GLenum> formatOpt)
+{
+	if (vbo == nullptr) {
+		LOG_L(L_ERROR, "[LuaVBOImpl::%s] No buffer to attach; call Define() first", __func__);
+		return -1;
+	}
+
+	const GLenum format = formatOpt.value_or(GL_RGBA32F);
+
+	if (texID == 0u)
+		glGenTextures(1, &texID);
+
+	glActiveTexture(GL_TEXTURE0 + unit);
+	glBindTexture(GL_TEXTURE_BUFFER, texID);
+	// re-attached every call: the underlying buffer is reallocated whenever the
+	// Lua side grows it, and a stale attachment reads the old storage
+	glTexBuffer(GL_TEXTURE_BUFFER, format, vbo->GetId());
+	glActiveTexture(GL_TEXTURE0);
+
+	glClearErrors("LuaVBOImpl", __func__, false);
+	return unit;
+}
+
+/***
+ * @function VBO:UnbindTexture
+ * @param unit integer texture unit
+ * @return integer unit
+ */
+int LuaVBOImpl::UnbindTexture(const GLuint unit)
+{
+	glActiveTexture(GL_TEXTURE0 + unit);
+	glBindTexture(GL_TEXTURE_BUFFER, 0);
+	glActiveTexture(GL_TEXTURE0);
+
+	glClearErrors("LuaVBOImpl", __func__, false);
+	return unit;
 }
 
 int LuaVBOImpl::BindBufferRangeImpl(GLuint bindingIndex,  const sol::optional<int> elemOffsetOpt, const sol::optional<int> elemCountOpt, const sol::optional<GLenum> targetOpt, bool bind)
