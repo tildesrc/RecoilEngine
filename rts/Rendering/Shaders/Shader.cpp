@@ -102,13 +102,44 @@ const spring::unordered_map<std::string, int>& Shader::GetGlslSamplerBindings() 
 // SSBO blocks are deliberately left alone: "buffer" needs GL 4.3 regardless, so
 // there is nothing to rescue, and a non-literal binding (a #define) is skipped
 // rather than guessed at.
+//
+// Only a real declaration is touched. An earlier version searched the whole
+// source for "layout" and then for the next '(' anywhere after it, which made
+// the word "layout" in a comment - prose, or a commented-out example - pair up
+// with the parentheses of the NEXT declaration and delete everything between
+// them. The result still compiled as far as the driver was concerned; it simply
+// no longer declared the uniform, and the error surfaced as that uniform being
+// undeclared some lines further down. So: comments are skipped, "layout" has to
+// be a whole token, and its '(' has to be the very next thing after it.
 static void RewriteGlslLayoutBindings(std::string* src)
 {
 	RECOIL_DETAILED_TRACY_ZONE;
 
-	for (size_t pos = src->find("layout"); pos != std::string::npos; pos = src->find("layout", pos)) {
-		const size_t lp = src->find('(', pos);
-		const size_t rp = (lp == std::string::npos) ? std::string::npos : src->find(')', lp);
+	const auto isWordChar = [](char c) { return isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+
+	for (size_t pos = 0; pos < src->size(); ) {
+		// skip over comments and string-free source until the next "layout" token
+		if (src->compare(pos, 2, "//") == 0) {
+			pos = src->find('\n', pos);
+			if (pos == std::string::npos) break;
+			continue;
+		}
+		if (src->compare(pos, 2, "/*") == 0) {
+			pos = src->find("*/", pos);
+			if (pos == std::string::npos) break;
+			pos += 2;
+			continue;
+		}
+		if (src->compare(pos, 6, "layout") != 0) { pos++; continue; }
+		if (pos > 0 && isWordChar((*src)[pos - 1])) { pos += 6; continue; }
+
+		// the '(' must follow the token directly, or this is not a declaration
+		size_t lp = pos + 6;
+		while (lp < src->size() && isspace(static_cast<unsigned char>((*src)[lp]))) lp++;
+
+		if (lp >= src->size() || (*src)[lp] != '(') { pos += 6; continue; }
+
+		const size_t rp = src->find(')', lp);
 
 		if (rp == std::string::npos) break;
 
@@ -180,6 +211,105 @@ static void RewriteGlslLayoutBindings(std::string* src)
 		src->replace(repB, repE - repB, empty ? "" : quals);
 		pos = repB;
 	}
+}
+
+// In C, an identifier that is not a defined macro evaluates to 0 inside #if. The
+// GLSL spec does not grant that: there, using an undefined macro in a #if
+// expression is an error. Almost every desktop driver follows C anyway, so
+// content gets written against the lenient reading and only fails on the strict
+// ones - Apple's, in practice. BAR's grass shader is the live example: it tests
+// "#if DEBUG == 1" and never defines DEBUG, which costs the map its grass
+// entirely because the vertex shader will not parse.
+//
+// Rather than patch each shader, give the strict compiler what the lenient one
+// would have assumed: declare every such identifier as 0 up front. Names that
+// ARE defined somewhere in the source are left alone (redefining them would be
+// the error instead), as are the operands of "defined", which are meant to be
+// absent, and the predefined __* / GL_* macros, which may not be redefined.
+static std::string GlslZeroUndefinedConditionMacros(const std::string& src, const std::string& defs)
+{
+	const auto isWordChar = [](char c) { return isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+
+	spring::unordered_set<std::string> defined;
+	spring::unordered_set<std::string> wanted;
+
+	// every "#define NAME" in either part, so we never shadow a real definition
+	for (const std::string* part: {&src, &defs}) {
+		for (size_t pos = part->find("#define"); pos != std::string::npos; pos = part->find("#define", pos)) {
+			size_t b = pos + 7;
+			while (b < part->size() && (( *part)[b] == ' ' || (*part)[b] == '\t')) b++;
+
+			size_t e = b;
+			while (e < part->size() && isWordChar((*part)[e])) e++;
+
+			if (e > b)
+				defined.insert(part->substr(b, e - b));
+
+			pos = e;
+		}
+	}
+
+	// identifiers used in #if / #elif expressions
+	for (const std::string* part: {&src, &defs}) {
+		for (size_t pos = 0; pos < part->size(); ) {
+			// NB: not find(..) + 1 - on the last line, with no trailing newline,
+			// npos + 1 is 0 and the loop never advances
+			const size_t nl = part->find('\n', pos);
+			const size_t eol = (nl == std::string::npos) ? part->size() : nl + 1;
+
+			size_t h = pos;
+			while (h < eol && isspace(static_cast<unsigned char>((*part)[h]))) h++;
+
+			const bool isIf   = (part->compare(h, 3, "#if")   == 0) && !isWordChar((*part)[std::min(h + 3, part->size() - 1)]);
+			const bool isElif = (part->compare(h, 5, "#elif") == 0);
+
+			if (!isIf && !isElif) { pos = eol; continue; }
+
+			for (size_t k = h + (isElif ? 5 : 3); k < eol; ) {
+				if (!isWordChar((*part)[k])) { k++; continue; }
+
+				size_t e = k;
+				while (e < eol && isWordChar((*part)[e])) e++;
+
+				const std::string tok = part->substr(k, e - k);
+				k = e;
+
+				if (tok == "defined") {
+					// skip its operand, parenthesised or bare
+					while (k < eol && ((*part)[k] == ' ' || (*part)[k] == '\t' || (*part)[k] == '(')) k++;
+					while (k < eol && isWordChar((*part)[k])) k++;
+					continue;
+				}
+
+				if (isdigit(static_cast<unsigned char>(tok[0])))
+					continue;
+				if (tok == "true" || tok == "false")
+					continue;
+				if (tok.compare(0, 2, "__") == 0 || tok.compare(0, 3, "GL_") == 0)
+					continue;
+
+				wanted.insert(tok);
+			}
+
+			pos = eol;
+		}
+	}
+
+	std::string out;
+
+	for (const std::string& name: wanted) {
+		if (defined.find(name) != defined.end())
+			continue;
+
+		static spring::unsynced_set<std::string> logged;
+
+		if (logged.insert(name).second)
+			LOG("defining \"%s\" as 0: used in a #if but never defined, which a strict GLSL frontend rejects", name.c_str());
+
+		out += "#define " + name + " 0\n";
+	}
+
+	return out;
 }
 
 static void ExtractGlslExtensions(std::string* src, std::string* extensions)
@@ -657,7 +787,12 @@ namespace Shader {
 		EnsureEndsWith(&versionStr, "\n");
 		if (!extensionsStr.empty()) EnsureEndsWith(&extensionsStr, "\n");
 
-		return versionStr + extensionsStr + prelude;
+		// after the #extension block, since #extension has to come first, and
+		// before the prelude's own declarations
+		const std::string zeroDefs =
+			GlslZeroUndefinedConditionMacros(srcStr, (defsStr != nullptr) ? *defsStr : std::string());
+
+		return versionStr + extensionsStr + zeroDefs + prelude;
 	}
 
 	std::string IShaderObject::GetShaderSource(const std::string& fileName)

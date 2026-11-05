@@ -453,6 +453,25 @@ namespace {
 		glShaderSource(obj, text.size(), &text[0], nullptr);
 		glCompileShader(obj);
 
+		// With SPRING_DBG_SHADERSRC set to a directory, every Lua shader the
+		// driver is handed is written there, numbered. Normalisation rewrites
+		// the source (#version clamped, #extension filtered, layout(binding)
+		// lifted out) and the driver's line numbers refer to the result, not to
+		// the file on disk - so when a conversion reports an identifier as
+		// undeclared, the first question is whether its declaration survived.
+		// Reading that off the real thing beats reasoning about the rewriter.
+		// See devtools/macos-port/SSBO-FALLBACK.md.
+		if (const char* dir = getenv("SPRING_DBG_SHADERSRC"); dir != nullptr) {
+			static int seq = 0;
+			const std::string path = std::string(dir) + "/shader" + IntToString(seq++) + ".glsl";
+
+			if (FILE* f = fopen(path.c_str(), "wb"); f != nullptr) {
+				for (const GLchar* t: text)
+					fwrite(t, 1, strlen(t), f);
+				fclose(f);
+			}
+		}
+
 		GLint result;
 		glGetShaderiv(obj, GL_COMPILE_STATUS, &result);
 		GLchar log[4096];
