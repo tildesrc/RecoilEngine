@@ -51,7 +51,7 @@
 	url = https://github.com/DLTcollab/sse2neon.git
 [submodule "rts/lib/streflop"]
 	path = rts/lib/streflop
-	url = https://github.com/RecoilEngine/streflop.git
+	url = https://github.com/tildesrc/streflop.git
 [submodule "rts/lib/monocypher"]
 	path = rts/lib/monocypher
 	url = https://github.com/LoupVaillant/Monocypher.git

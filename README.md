@@ -38,36 +38,26 @@ file is just the recipe.
 brew install cmake devil libunwind-headers openal-soft libvorbis libogg expat sevenzip
 ```
 
-## 2. Clone, and fix up the submodule
+## 2. Clone
 
 ```sh
-git clone <this-repo> RecoilEngine
+git clone https://github.com/tildesrc/RecoilEngine.git
 cd RecoilEngine
-git checkout macos
 git submodule update --init --recursive
 ```
 
-**Then apply the streflop patch, or the build fails:**
+That is all — nothing to patch by hand. The `rts/lib/streflop` submodule points
+at a fork, [tildesrc/streflop](https://github.com/tildesrc/streflop), which
+already carries the one fix macOS needs, so `submodule update` is safe to re-run
+and leaves nothing dirty.
 
-```sh
-cd rts/lib/streflop
-patch -p1 -i ../../../devtools/macos-port/streflop-drop-hypot-shim.patch
-cd ../../..
-```
-
-`streflop_cond.h` carries a `std::hypot` shim added for macOS in 2013. It is
-obsolete — libc++ has had `std::hypot` for years — and it no longer compiles,
-because it calls a `math::sqrtf` that does not exist in that namespace. The
-symptom without the patch is:
-
-```
-error: no member named 'sqrtf' in namespace 'math'
-```
-
-This lives as a patch rather than a submodule bump because the fix belongs
-upstream in the streflop repo, and a gitlink pointing at an unpublished commit
-makes the submodule unresolvable for everyone who clones. Re-apply it after any
-`git submodule update`, which will revert it.
+What the fork changes: `streflop_cond.h` carried a `std::hypot` shim added for
+macOS in 2013. It is obsolete — libc++ has had `std::hypot` for years — and it
+no longer compiles, because it calls a `math::sqrtf` that does not exist in that
+namespace. Upstream streflop has simply never built on macOS. Dropping the shim
+is the whole change, kept as
+`devtools/macos-port/streflop-drop-hypot-shim.patch` for anyone who wants to
+apply it to upstream instead of using the fork.
 
 ## 3. Build
 
@@ -275,7 +265,7 @@ share.
 
 | Symptom | Cause |
 | --- | --- |
-| `no member named 'sqrtf' in namespace 'math'` | the streflop patch is not applied (step 2) |
+| `no member named 'sqrtf' in namespace 'math'` | `rts/lib/streflop` is on upstream, not the fork; re-run `git submodule sync && git submodule update --init` |
 | "Failed to load FontFile" | `build-all/fonts` missing; copy `cont/fonts` |
 | Aborts having created no GL context | the 4.1 GL settings are missing from `springsettings.cfg` |
 | Never leaves the splash screen, watchdog hangs | the display is asleep |
