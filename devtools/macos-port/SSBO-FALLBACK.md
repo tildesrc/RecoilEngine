@@ -528,8 +528,12 @@ overrides ship as a `.sdd` archive rather than write-dir files.
 plus one patch per overridden file, each against the file as the BAR archive
 ships it.
 
-Deploy by building `<write-dir>/games/bar-macos.sdd/`: extract each original with
-`bar-extract.py`, apply its patch, and place the result at the same path.
+Deploy with `deploy-bar-overrides.py <write-dir>`, which extracts each original,
+applies its patch and writes the result into the `.sdd` at the same path (and
+rewrites the `depend` line to whatever BAR version is actually installed).
+`--check` verifies every patch still applies without writing anything — run that
+first after a BAR update. `regen-patches.sh` is the inverse, for when you have
+edited a deployed file and want the patch back.
 `modinfo.lua` declares `depend` on the stock BAR archive, so BAR is still loaded
 underneath and only these files are shadowed. The deployed tree is gitignored
 and BAR rewrites parts of the write dir, so **the patches are the durable copy,
