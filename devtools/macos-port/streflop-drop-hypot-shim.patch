@@ -1,0 +1,43 @@
+--- a/streflop_cond.h
++++ b/streflop_cond.h
+@@ -82,15 +82,6 @@
+ 
+ 
+ 
+-#ifdef __APPLE__
+-// macosx's cmath doesn't include c++11's std::hypot yet (tested 2013)
+-namespace std {
+-	template<typename T> T hypot(T x, T y);
+-};
+-#endif
+-
+-
+-
+ namespace math {
+ 	using std::fabs;
+ 
+@@ -171,24 +162,6 @@
+ 
+ 
+ 
+-#ifdef __APPLE__
+-#include <algorithm>
+-
+-namespace std {
+-	template<typename T>
+-	T hypot(T x, T y) {
+-		x = std::abs(x);
+-		y = std::abs(y);
+-		auto t = std::min(x, y);
+-		     x = std::max(x, y);
+-		t = t / x;
+-		return x * math::sqrtf(1.0f + t*t);
+-	}
+-}
+-#endif
+-
+-
+-
+ #endif // STREFLOP_ENABLED
+ 
+ #endif // STREFLOP_COND_H
