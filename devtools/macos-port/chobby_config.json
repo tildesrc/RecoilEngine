@@ -1,0 +1,9 @@
+{
+	"server": {
+		"address": "road-flag.bnr.la",
+		"port": 8200,
+		"serverName": "BAR",
+		"protocol": "spring"
+	},
+	"game": "byar"
+}

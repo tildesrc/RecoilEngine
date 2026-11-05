@@ -1,0 +1,76 @@
+// Single-player BAR skirmish, bypassing the Chobby menu.
+//
+//   cp devtools/macos-port/bar-skirmish.txt <write-dir>/
+//   cd <write-dir> && ./spring --write-dir "$(pwd)" bar-skirmish.txt
+//
+// GameType must match the installed BAR archive EXACTLY, version included -
+// the registered string is modinfo's name .. " " .. version. Run
+// deploy-bar-overrides.py and it prints the right value. A mismatch fails with
+// "Dependent archive ... not found", which reads like a missing archive rather
+// than a stale version string.
+//
+// The macOS overrides come in through ExtraMutators in springsettings.cfg, so
+// this names stock BAR. (Naming "BAR macOS overrides 1" as the GameType also
+// works, but then menu and skirmish launches load the overrides two different
+// ways.)
+//
+// Mapname must be a map actually present in <write-dir>/maps. Download one from
+// the Chobby menu first, or with pr-downloader --download-map "Quicksilver 1.2".
+[GAME]
+{
+	Mapname=DeltaSiege;
+	GameType=Beyond All Reason test-31765-420384b;
+
+	// 0 = fixed positions from the StartPosX/Z below. Type 2 ("choose in game")
+	// waits for a human to pick and the simulation never leaves frame -1.
+	StartPosType=0;
+	NoHelperAIs=1;
+
+	// All four are required even for single player: the engine connects to its
+	// own server, and without them it times out after 30s with "server
+	// connection timeout".
+	HostIP=127.0.0.1;
+	HostPort=8452;
+	IsHost=1;
+	MyPlayerName=macos;
+
+	NumPlayers=1;
+	NumTeams=2;
+	NumAllyTeams=2;
+
+	[MODOPTIONS]
+	{
+	}
+	[PLAYER0]
+	{
+		Name=macos;
+		Team=0;
+		Spectator=0;
+	}
+	[TEAM0]
+	{
+		TeamLeader=0;
+		AllyTeam=0;
+		RGBColor=0.6 0.1 0.1;
+		Side=Armada;
+		StartPosX=600;
+		StartPosZ=600;
+	}
+	[TEAM1]
+	{
+		TeamLeader=0;
+		AllyTeam=1;
+		RGBColor=0.1 0.1 0.6;
+		Side=Cortex;
+		StartPosX=3500;
+		StartPosZ=3500;
+	}
+	[ALLYTEAM0]
+	{
+		NumAllies=0;
+	}
+	[ALLYTEAM1]
+	{
+		NumAllies=0;
+	}
+}

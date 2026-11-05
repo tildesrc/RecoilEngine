@@ -8,6 +8,10 @@
 --
 -- Keep the override list in devtools/macos-port/bar-overrides/ in the engine
 -- repo; this directory is the deployment, not the source of truth.
+--
+-- deploy-bar-overrides.py rewrites the depend entry below to whatever BAR
+-- version is actually installed, so the value checked in here is only a
+-- placeholder - do not bother keeping it current by hand.
 return {
 	name = "BAR macOS overrides",
 	shortname = "BARMACOS",
